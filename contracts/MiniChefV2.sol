@@ -92,7 +92,7 @@ contract MiniChefV2 is BoringOwnable, BoringBatchable {
     /// @param allocPoint AP of the new pool.
     /// @param _lpToken Address of the LP ERC-20 token.
     /// @param _rewarder Address of the rewarder delegate.
-    function add(uint256 allocPoint, IERC20 _lpToken, IRewarder _rewarder) public onlyOwner {
+    function add(uint256 allocPoint, IERC20 _lpToken, IRewarder _rewarder) public onlyOwner returns (uint256 pid){
         require(addedTokens[address(_lpToken)] == false, "Token already added");
         totalAllocPoint = totalAllocPoint.add(allocPoint);
         lpToken.push(_lpToken);
@@ -104,7 +104,8 @@ contract MiniChefV2 is BoringOwnable, BoringBatchable {
             accSushiPerShare: 0
         }));
         addedTokens[address(_lpToken)] = true;
-        emit LogPoolAddition(lpToken.length.sub(1), allocPoint, _lpToken, _rewarder);
+        pid = lpToken.length.sub(1);
+        emit LogPoolAddition(pid, allocPoint, _lpToken, _rewarder);
     }
 
     /// @notice Update the given pool's SUSHI allocation point and `IRewarder` contract. Can only be called by the owner.
