@@ -8,15 +8,20 @@ import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import "@openzeppelin/contracts/math/SafeMath.sol";
 //import "@boringcrypto/boring-solidity/contracts/ERC20.sol";
-
 import "./MiniChefV2.sol";
 import "@openzeppelin/contracts/presets/ERC20PresetMinterPauser.sol";
 
 // Each voter has a corresponding ERC20 token to send to MiniChef
+// Exchange rate between tokens is always 1:1, 1 GovToken == 1 VoteToken
 interface IVoter {
+    event Vote(address indexed user, uint256 amount);
+    event Unvote(address indexed user, uint256 amount);
+
     function vote(uint256 govTokenAmount) external;
 
     function unvote(uint256 govTokenAmount) external;
+
+    function harvest() external;
 
     function voteCount() external returns (uint256);
 
@@ -38,37 +43,45 @@ contract Voter is IVoter, Ownable {
     uint256 public immutable chefPoolId;
 
     ERC20PresetMinterPauser immutable _voteToken;
-
-    mapping (address => uint256) private _userVotes;
+    mapping(address => uint256) private _userVotes;
 
     uint8 constant DEFAULT_ALLOC_POINT = 1;
 
-    constructor(MiniChefV2 miniChef_, IERC20 govToken_, address rewardPool_) public {
+    constructor(MiniChefV2 miniChef_, IERC20 govToken_, address rewardPool_, string voterName, string voterSymbol) public {
         govToken = govToken_;
         miniChef = miniChef_;
-        _voteToken = new ERC20PresetMinterPauser("VaporVoter", "VVT");
-        chefPoolId = miniChef.add(DEFAULT_ALLOC_POINT, _voteToken, null);
+        _voteToken = new ERC20PresetMinterPauser(voterName, voterSymbol);
+        chefPoolId = miniChef.add(DEFAULT_ALLOC_POINT, _voteToken, IRewarder(0));
     }
 
-    function vote(uint256 govTokenAmount) external override {
-        require(this.isActive(), "Voting for this voter is paused");
+    function vote(uint256 tokenAmount) external override {
+        require(this.isActive(), "Voting is inactive");
         // transferring GovToken from user to this contract
-        govToken.transfer(address(this), govTokenAmount);
+        govToken.transfer(address(this), tokenAmount);
         // remember user vote count
-        _userVotes[msg.sender] = _userVotes[msg.sender].add(govTokenAmount);
+        _userVotes[msg.sender] = _userVotes[msg.sender].add(tokenAmount);
         // mint and approve VoteToken transfer, the transfer will be done by miniChef
-        _voteToken.mint(address(this), govTokenAmount);
-        voteToken.approve(address(miniChef), govTokenAmount);
-        miniChef.deposit(chefPoolId, govTokenAmount, rewardPoolAddress);
+        _voteToken.mint(address(this), tokenAmount);
+        voteToken.approve(address(miniChef), tokenAmount);
+        // deposit VoteToken to our contract
+        miniChef.deposit(chefPoolId, tokenAmount, address(this));
+        emit Vote(msg.sender, tokenAmount);
     }
 
-    function unvote(uint256 govTokenAmount) external override {
+    function unvote(uint256 tokenAmount) external override {
         // decrease user vote count
-        _userVotes[msg.sender] = _userVotes[msg.sender].sub(govTokenAmount, "Not enough votes");
+        _userVotes[msg.sender] = _userVotes[msg.sender].sub(tokenAmount, "Not enough votes");
         // withdraw VoteToken from minichef
-        miniChef.withdraw(chefPoolId, govTokenAmount, address(this));
+        miniChef.withdraw(chefPoolId, tokenAmount, address(this));
+        // burn withdrawn vote tokens
+        _voteToken.burn(tokenAmount);
         // send user their GovToken
         govToken.transfer(msg.sender, govTokenAmount);
+        emit Unvote(msg.sender, tokenAmount);
+    }
+
+    function harvest() external override {
+        miniChef.harvest(chefPoolId, rewardPoolAddress);
     }
 
     function voteCount() external override returns (uint256) {
