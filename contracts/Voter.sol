@@ -3,11 +3,7 @@
 pragma solidity 0.6.12;
 
 import "@openzeppelin/contracts/access/Ownable.sol";
-//// Conflict: IERC20 from OpenZepplilin with IERC20 from Boring (MiniChef import)
-import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import "@openzeppelin/contracts/math/SafeMath.sol";
-//import "@boringcrypto/boring-solidity/contracts/ERC20.sol";
 import "./MiniChefV2.sol";
 import "@openzeppelin/contracts/presets/ERC20PresetMinterPauser.sol";
 
@@ -24,8 +20,6 @@ interface IVoter {
     function harvest() external;
 
     function voteCount() external returns (uint256);
-
-    function totalVoteCount() external returns (uint256);
 
     function pause() external;
 
@@ -47,11 +41,13 @@ contract Voter is IVoter, Ownable {
 
     uint8 constant DEFAULT_ALLOC_POINT = 1;
 
-    constructor(MiniChefV2 miniChef_, IERC20 govToken_, address rewardPool_, string voterName, string voterSymbol) public {
+    constructor(MiniChefV2 miniChef_, IERC20 govToken_, address rewardPool_) public {
         govToken = govToken_;
         miniChef = miniChef_;
-        _voteToken = new ERC20PresetMinterPauser(voterName, voterSymbol);
-        chefPoolId = miniChef.add(DEFAULT_ALLOC_POINT, _voteToken, IRewarder(0));
+        ERC20PresetMinterPauser voteToken = new ERC20PresetMinterPauser("Voter", "VTR");
+        chefPoolId = miniChef_.add(DEFAULT_ALLOC_POINT, IBoringERC20(address(voteToken)), IRewarder(0));
+        _voteToken = voteToken;
+        rewardPoolAddress = rewardPool_;
     }
 
     function vote(uint256 tokenAmount) external override {
@@ -62,7 +58,7 @@ contract Voter is IVoter, Ownable {
         _userVotes[msg.sender] = _userVotes[msg.sender].add(tokenAmount);
         // mint and approve VoteToken transfer, the transfer will be done by miniChef
         _voteToken.mint(address(this), tokenAmount);
-        voteToken.approve(address(miniChef), tokenAmount);
+        _voteToken.approve(address(miniChef), tokenAmount);
         // deposit VoteToken to our contract
         miniChef.deposit(chefPoolId, tokenAmount, address(this));
         emit Vote(msg.sender, tokenAmount);
@@ -76,7 +72,7 @@ contract Voter is IVoter, Ownable {
         // burn withdrawn vote tokens
         _voteToken.burn(tokenAmount);
         // send user their GovToken
-        govToken.transfer(msg.sender, govTokenAmount);
+        govToken.transfer(msg.sender, tokenAmount);
         emit Unvote(msg.sender, tokenAmount);
     }
 
@@ -89,11 +85,11 @@ contract Voter is IVoter, Ownable {
     }
 
     function pause() external override onlyOwner {
-        _voteToken.pause();
+        //        _voteToken.pause();
     }
 
     function unpause() external override onlyOwner {
-        _voteToken.unpause();
+        //        _voteToken.unpause();
     }
 
     function isActive() external override returns (bool) {

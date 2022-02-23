@@ -3,9 +3,9 @@
 pragma solidity 0.6.12;
 pragma experimental ABIEncoderV2;
 
-import "@boringcrypto/boring-solidity/contracts/libraries/BoringMath.sol";
-import "@boringcrypto/boring-solidity/contracts/BoringBatchable.sol";
-import "@boringcrypto/boring-solidity/contracts/BoringOwnable.sol";
+import "./boringcrypto/libraries/BoringMath.sol";
+import "./boringcrypto/BoringBatchable.sol";
+import "./boringcrypto/BoringOwnable.sol";
 import "./libraries/SignedSafeMath.sol";
 import "./interfaces/IRewarder.sol";
 import "./interfaces/IMasterChef.sol";
@@ -13,7 +13,7 @@ import "./interfaces/IMasterChef.sol";
 interface IMigratorChef {
     // Take the current LP token address and return the new LP token address.
     // Migrator should have full access to the caller's LP token.
-    function migrate(IERC20 token) external returns (IERC20);
+    function migrate(IBoringERC20 token) external returns (IBoringERC20);
 }
 
 /// @notice The (older) MasterChef contract gives out a constant number of SUSHI tokens per block.
@@ -21,10 +21,10 @@ interface IMigratorChef {
 /// The idea for this MasterChef V2 (MCV2) contract is therefore to be the owner of a dummy token
 /// that is deposited into the MasterChef V1 (MCV1) contract.
 /// The allocation point for this pool on MCV1 is the total allocation point for all pools that receive double incentives.
-contract MiniChefV2 is BoringOwnable, BoringBatchable {
+contract MiniChefV2 is BoringOwnable {
     using BoringMath for uint256;
     using BoringMath128 for uint128;
-    using BoringERC20 for IERC20;
+    using LibBoringERC20 for IBoringERC20;
     using SignedSafeMath for int256;
 
     /// @notice Info of each MCV2 user.
@@ -45,22 +45,22 @@ contract MiniChefV2 is BoringOwnable, BoringBatchable {
     }
 
     /// @notice Address of SUSHI contract.
-    IERC20 public immutable SUSHI;
+    IBoringERC20 public immutable SUSHI;
     // @notice The migrator contract. It has a lot of power. Can only be set through governance (owner).
     IMigratorChef public migrator;
 
     /// @notice Info of each MCV2 pool.
     PoolInfo[] public poolInfo;
     /// @notice Address of the LP token for each MCV2 pool.
-    IERC20[] public lpToken;
+    IBoringERC20[] public lpToken;
     /// @notice Address of each `IRewarder` contract in MCV2.
     IRewarder[] public rewarder;
 
     /// @notice Info of each user that stakes LP tokens.
-    mapping (uint256 => mapping (address => UserInfo)) public userInfo;
+    mapping(uint256 => mapping(address => UserInfo)) public userInfo;
 
     /// @dev Tokens added
-    mapping (address => bool) public addedTokens;
+    mapping(address => bool) public addedTokens;
 
     /// @dev Total allocation points. Must be the sum of all allocation points in all pools.
     uint256 public totalAllocPoint;
@@ -72,13 +72,13 @@ contract MiniChefV2 is BoringOwnable, BoringBatchable {
     event Withdraw(address indexed user, uint256 indexed pid, uint256 amount, address indexed to);
     event EmergencyWithdraw(address indexed user, uint256 indexed pid, uint256 amount, address indexed to);
     event Harvest(address indexed user, uint256 indexed pid, uint256 amount);
-    event LogPoolAddition(uint256 indexed pid, uint256 allocPoint, IERC20 indexed lpToken, IRewarder indexed rewarder);
+    event LogPoolAddition(uint256 indexed pid, uint256 allocPoint, IBoringERC20 indexed lpToken, IRewarder indexed rewarder);
     event LogSetPool(uint256 indexed pid, uint256 allocPoint, IRewarder indexed rewarder, bool overwrite);
     event LogUpdatePool(uint256 indexed pid, uint64 lastRewardTime, uint256 lpSupply, uint256 accSushiPerShare);
     event LogSushiPerSecond(uint256 sushiPerSecond);
 
     /// @param _sushi The SUSHI token contract address.
-    constructor(IERC20 _sushi) public {
+    constructor(IBoringERC20 _sushi) public {
         SUSHI = _sushi;
     }
 
@@ -92,16 +92,16 @@ contract MiniChefV2 is BoringOwnable, BoringBatchable {
     /// @param allocPoint AP of the new pool.
     /// @param _lpToken Address of the LP ERC-20 token.
     /// @param _rewarder Address of the rewarder delegate.
-    function add(uint256 allocPoint, IERC20 _lpToken, IRewarder _rewarder) public onlyOwner returns (uint256 pid){
+    function add(uint256 allocPoint, IBoringERC20 _lpToken, IRewarder _rewarder) public onlyOwner returns (uint256 pid){
         require(addedTokens[address(_lpToken)] == false, "Token already added");
         totalAllocPoint = totalAllocPoint.add(allocPoint);
         lpToken.push(_lpToken);
         rewarder.push(_rewarder);
 
         poolInfo.push(PoolInfo({
-            allocPoint: allocPoint.to64(),
-            lastRewardTime: block.timestamp.to64(),
-            accSushiPerShare: 0
+        allocPoint : allocPoint.to64(),
+        lastRewardTime : block.timestamp.to64(),
+        accSushiPerShare : 0
         }));
         addedTokens[address(_lpToken)] = true;
         pid = lpToken.length.sub(1);
@@ -116,7 +116,7 @@ contract MiniChefV2 is BoringOwnable, BoringBatchable {
     function set(uint256 _pid, uint256 _allocPoint, IRewarder _rewarder, bool overwrite) public onlyOwner {
         totalAllocPoint = totalAllocPoint.sub(poolInfo[_pid].allocPoint).add(_allocPoint);
         poolInfo[_pid].allocPoint = _allocPoint.to64();
-        if (overwrite) { rewarder[_pid] = _rewarder; }
+        if (overwrite) {rewarder[_pid] = _rewarder;}
         emit LogSetPool(_pid, _allocPoint, overwrite ? _rewarder : rewarder[_pid], overwrite);
     }
 
@@ -137,10 +137,10 @@ contract MiniChefV2 is BoringOwnable, BoringBatchable {
     /// @param _pid The index of the pool. See `poolInfo`.
     function migrate(uint256 _pid) public {
         require(address(migrator) != address(0), "MasterChefV2: no migrator set");
-        IERC20 _lpToken = lpToken[_pid];
+        IBoringERC20 _lpToken = lpToken[_pid];
         uint256 bal = _lpToken.balanceOf(address(this));
         _lpToken.approve(address(migrator), bal);
-        IERC20 newLpToken = migrator.migrate(_lpToken);
+        IBoringERC20 newLpToken = migrator.migrate(_lpToken);
         require(bal == newLpToken.balanceOf(address(this)), "MasterChefV2: migrated balance must match");
         require(addedTokens[address(newLpToken)] == false, "Token already added");
         addedTokens[address(newLpToken)] = true;
@@ -257,7 +257,7 @@ contract MiniChefV2 is BoringOwnable, BoringBatchable {
 
         IRewarder _rewarder = rewarder[pid];
         if (address(_rewarder) != address(0)) {
-            _rewarder.onSushiReward( pid, msg.sender, to, _pendingSushi, user.amount);
+            _rewarder.onSushiReward(pid, msg.sender, to, _pendingSushi, user.amount);
         }
 
         emit Harvest(msg.sender, pid, _pendingSushi);
