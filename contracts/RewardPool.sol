@@ -8,6 +8,7 @@ import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "./interfaces/IRewardDistributionRecipient.sol";
 import "./interfaces/LPTokenWrapper.sol";
 
+// https://github.com/beefyfinance/beefy-protocol/blob/master/contracts/RewardPool.sol
 contract RewardPool is LPTokenWrapper, IRewardDistributionRecipient {
     IERC20 public yfi = IERC20(0x0000000000000000000000000000000000000000);
     uint256 public constant DURATION = 60 days;
