@@ -19,7 +19,7 @@ interface IVoter {
 
     function harvest() external;
 
-    function voteCount() external returns (uint256);
+    function voteCount() external view returns (uint256);
 
     function pause() external;
 
@@ -41,13 +41,16 @@ contract Voter is IVoter, Ownable {
 
     uint8 constant DEFAULT_ALLOC_POINT = 1;
 
-    constructor(MiniChefV2 miniChef_, IERC20 govToken_, address rewardPool_) public {
+    constructor(MiniChefV2 miniChef_, 
+                uint256 chefPoolId_, 
+                IERC20 govToken_, 
+                address rewardPool_, 
+                ERC20PresetMinterPauser voteToken_) public {
         govToken = govToken_;
         miniChef = miniChef_;
-        ERC20PresetMinterPauser voteToken = new ERC20PresetMinterPauser("Voter", "VTR");
-        chefPoolId = miniChef_.add(DEFAULT_ALLOC_POINT, IBoringERC20(address(voteToken)), IRewarder(0));
-        _voteToken = voteToken;
+        _voteToken = voteToken_;
         rewardPoolAddress = rewardPool_;
+        chefPoolId = chefPoolId_;
     }
 
     function vote(uint256 tokenAmount) external override {
@@ -80,7 +83,7 @@ contract Voter is IVoter, Ownable {
         miniChef.harvest(chefPoolId, rewardPoolAddress);
     }
 
-    function voteCount() external override returns (uint256) {
+    function voteCount() external override view returns (uint256) {
         return _userVotes[msg.sender];
     }
 
