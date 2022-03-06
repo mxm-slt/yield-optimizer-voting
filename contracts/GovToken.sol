@@ -6,7 +6,7 @@ import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 
 
-contract VwaveToken is ERC20("GovToken", "GovT"), Ownable {
+contract GovToken is ERC20("GovToken", "GovT"), Ownable {
     function mint(address _to, uint256 _amount) public onlyOwner {
         _mint(_to, _amount);
     }
