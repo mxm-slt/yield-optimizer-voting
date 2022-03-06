@@ -61,7 +61,7 @@ contract Voter is IVoter, Ownable {
     function vote(uint256 tokenAmount) external override {
         require(this.isActive(), "Voting is inactive");
         // transferring GovToken from user to this contract
-        govToken.transfer(address(this), tokenAmount);
+        govToken.transferFrom(msg.sender, address(this), tokenAmount);
         // remember user vote count
         _userVotes[msg.sender] = _userVotes[msg.sender].add(tokenAmount);
         // mint and approve VoteToken transfer, the transfer will be done by miniChef
@@ -101,7 +101,7 @@ contract Voter is IVoter, Ownable {
     }
 
     function isActive() external override returns (bool) {
-        return _voteToken.paused();
+        return !_voteToken.paused();
     }
 
 }
