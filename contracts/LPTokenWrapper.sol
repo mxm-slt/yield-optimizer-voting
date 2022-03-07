@@ -10,7 +10,12 @@ contract LPTokenWrapper {
     using SafeMath for uint256;
     using SafeERC20 for IERC20;
 
-    IERC20 public y = IERC20(0x0000000000000000000000000000000000000000);
+    //IERC20 public vaultLPTpoken = IERC20(0x0000000000000000000000000000000000000000);
+    IERC20 public immutable vaultLPTpoken;
+
+    constructor (IERC20 _vaultLPTpoken) public {
+        vaultLPTpoken = _vaultLPTpoken;
+    }
 
     uint256 private _totalSupply;
     mapping(address => uint256) private _balances;
@@ -26,12 +31,12 @@ contract LPTokenWrapper {
     function stake(uint256 amount) public virtual {
         _totalSupply = _totalSupply.add(amount);
         _balances[msg.sender] = _balances[msg.sender].add(amount);
-        y.safeTransferFrom(msg.sender, address(this), amount);
+        vaultLPTpoken.safeTransferFrom(msg.sender, address(this), amount);
     }
 
     function withdraw(uint256 amount) public virtual {
         _totalSupply = _totalSupply.sub(amount);
         _balances[msg.sender] = _balances[msg.sender].sub(amount);
-        y.safeTransfer(msg.sender, amount);
+        vaultLPTpoken.safeTransfer(msg.sender, amount);
     }
 }

@@ -6,11 +6,12 @@ import "@openzeppelin/contracts/math/Math.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 import "./interfaces/IRewardDistributionRecipient.sol";
-import "./interfaces/LPTokenWrapper.sol";
+import "./LPTokenWrapper.sol";
 
 // https://github.com/beefyfinance/beefy-protocol/blob/master/contracts/RewardPool.sol
 contract RewardPool is LPTokenWrapper, IRewardDistributionRecipient {
-    IERC20 public yfi = IERC20(0x0000000000000000000000000000000000000000);
+    //IERC20 public vwavetoken = IERC20(0x0000000000000000000000000000000000000000);
+    IERC20 public immutable vwavetoken;
     uint256 public constant DURATION = 60 days;
 
     uint256 public periodFinish = 0;
@@ -24,6 +25,10 @@ contract RewardPool is LPTokenWrapper, IRewardDistributionRecipient {
     event Staked(address indexed user, uint256 amount);
     event Withdrawn(address indexed user, uint256 amount);
     event RewardPaid(address indexed user, uint256 reward);
+
+    constructor (IERC20 _vaultLPTpoken, IERC20 _vwavetoken) public LPTokenWrapper(_vaultLPTpoken) {
+        vwavetoken = _vwavetoken;
+    }
 
     modifier updateReward(address account) {
         rewardPerTokenStored = rewardPerToken();
@@ -84,7 +89,7 @@ contract RewardPool is LPTokenWrapper, IRewardDistributionRecipient {
         uint256 reward = earned(msg.sender);
         if (reward > 0) {
             rewards[msg.sender] = 0;
-            yfi.safeTransfer(msg.sender, reward);
+            vwavetoken.safeTransfer(msg.sender, reward);
             emit RewardPaid(msg.sender, reward);
         }
     }
