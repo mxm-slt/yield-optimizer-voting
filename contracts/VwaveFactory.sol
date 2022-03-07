@@ -4,6 +4,7 @@ pragma solidity 0.6.12;
 
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "./Voter.sol";
+import "./VwaveRewarder.sol";
 
 // Factory is owned by deployer acc
 // MiniChef is owned by Factory
@@ -21,22 +22,34 @@ contract VwaveFactory is Ownable {
 
     mapping(address=>bool) private _isVoter;
 
-    MiniChefV2 public /*immutable*/ miniChef;
+    MiniChefV2 public immutable miniChef;
     IERC20 public immutable govToken;
     uint256 public immutable chefPoolId;
     ERC20PresetMinterPauser private immutable _voteToken;
+    VwaveRewarder public immutable _vwaveRewarder;
 
     constructor(IERC20 govToken_, IBoringERC20 vwave_) public {
-        miniChef = new MiniChefV2(vwave_);
-        miniChef.setVwavePerSecond(10000000000000000);
+        MiniChefV2 miniChef_ = new MiniChefV2(vwave_);
+        miniChef_.setVwavePerSecond(10000000000000000);
+        miniChef = miniChef_;
+        
         govToken = govToken_;
+
         ERC20PresetMinterPauser voteToken = new ERC20PresetMinterPauser("Voter", "VTR");
         _voteToken = voteToken;
-        chefPoolId = miniChef.add(DEFAULT_ALLOC_POINT, IBoringERC20(address(voteToken)), IRewarder(0));
+
+        VwaveRewarder rewarder = new VwaveRewarder(); // Rewarder notifies RewardPool 
+        _vwaveRewarder = rewarder;
+
+        chefPoolId = miniChef_.add(DEFAULT_ALLOC_POINT, IBoringERC20(address(voteToken)), IRewarder(rewarder));
     }
 
     function getChef() external view returns (MiniChefV2) {
         return miniChef;
+    }
+
+    function getVwaveRewarder() external view returns (VwaveRewarder) {
+        return _vwaveRewarder;
     }
 
     function isVoter(address b)
@@ -49,7 +62,10 @@ contract VwaveFactory is Ownable {
         external
         onlyOwner
         returns (Voter)
-    {
+    {        
+        // this must be exectued by the rewardPool_ owner
+        //rewardPool_.setRewardDistribution(address(_vwaveRewarder)); 
+
         Voter voter = new Voter(miniChef, chefPoolId, govToken, rewardPool_, _voteToken);
         _voteToken.grantRole(MINTER_ROLE, address(voter));
         _isVoter[address(voter)] = true;

@@ -34,9 +34,14 @@ describe("VoterChefPool", function () {
       ["rewardpool", this.RewardPool, []],
       ["r", this.ERC20Mock, ["Reward", "RewardT", getBigNumber(100000)]],
     ])
+      
 
     await deploy(this, [["factory", this.VwaveFactory, [this.govt.address, this.vwave.address]]])
     this.chef = await this.MiniChefV2.attach(await this.factory.getChef())
+
+    // only MiniChef can distribute rewards to RewardPools
+    await this.rewardpool.setRewardDistribution(await this.factory.getVwaveRewarder()) 
+
 
     let voterTx = await (await this.factory.newVoter(this.rewardpool.address)).wait()
     let voterAddress = voterTx.events.filter(x => x.event == "LOG_NEW_VOTER")[0].args["voter"]
@@ -67,10 +72,31 @@ describe("VoterChefPool", function () {
       let voteCount = getBigNumber(100)
       await this.govt.approve(this.voter.address, voteCount)
       expect(await this.govt.allowance(this.alice.address, this.voter.address)).to.be.equal(voteCount)
-      await this.voter.vote(voteCount)
+      let logVote = await this.voter.vote(voteCount)
       expect(await this.voter.voteCount()).to.be.equal(voteCount)
       let govtBalanceAfterVote = await this.govt.balanceOf(this.alice.address)
-      expect(govtBalanceAfterVote).to.be.equal(getBigNumber(10000 - 100))
+      expect(govtBalanceAfterVote).to.be.equal(govtBalance.sub(voteCount))
+
+      await advanceTime(86400) // +24 hours
+
+      // check the amount of reward accumulated in a pool
+      let logAfter24h = await this.chef.updatePool(0)
+
+      let timestamp2 = (await ethers.provider.getBlock(logAfter24h.blockNumber)).timestamp
+      let timestamp = (await ethers.provider.getBlock(logVote.blockNumber)).timestamp
+      
+      // TODO VwavePerSecond=10000000000000000, introduce this parameter in contracts
+      let expectedVwave = BigNumber.from("10000000000000000").mul(timestamp2 - timestamp)
+      let pendingVwave = await this.chef.pendingVwave(0, this.voter.address)
+      expect(pendingVwave).to.be.equal(expectedVwave)
+
+      await this.voter.harvest()
+
+      await this.voter.unvote(voteCount)
+      expect(await this.govt.balanceOf(this.alice.address)).to.be.equal(govtBalance)
+
+
+
     })
 
     it.skip("alice can't vote without approving govt", async function () {
