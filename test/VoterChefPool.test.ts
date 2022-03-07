@@ -32,6 +32,7 @@ describe("VoterChefPool", function () {
 
     await deploy(this, [["factory", this.VwaveFactory, [this.govt.address, this.vwave.address]]])
     this.chef = await this.MiniChefV2.attach(await this.factory.getChef())
+    this.VWAVE_PER_SECOND = await this.factory.VWAVE_PER_SECOND()
 
     // only MiniChef can distribute rewards to RewardPools
     await this.rewardpool.setRewardDistribution(await this.factory.getVwaveRewarder()) 
@@ -82,12 +83,16 @@ describe("VoterChefPool", function () {
       let timestamp2 = (await ethers.provider.getBlock(logAfter24h.blockNumber)).timestamp
       let timestamp = (await ethers.provider.getBlock(logVote.blockNumber)).timestamp
       
-      // TODO VwavePerSecond=10000000000000000, make it configurable in contracts
-      let expectedVwave = BigNumber.from("10000000000000000").mul(timestamp2 - timestamp)
+      // TODO VwavePerSecond=10_000_000_000_000_000 = 1e16 ==> 1e18/100 = 0.01, make it configurable in contracts
+      let expectedVwave = BigNumber.from(this.VWAVE_PER_SECOND).mul(timestamp2 - timestamp)
       let pendingVwave = await this.chef.pendingVwave(0, this.voter.address)
       expect(pendingVwave).to.be.equal(expectedVwave)
-
-      await expect(this.voter.harvest()).to.emit(this.rewardpool, "RewardAdded")
+      // 864010000000000000000
+      //     10000000000000000
+      // 864000000000000000000
+      //console.log("expectedVwave: " + ethers.utils.formatEther(pendingVwave))
+      //console.log("VWAVE_PER_SECOND: " + this.VWAVE_PER_SECOND)
+      await expect(this.voter.harvest()).to.emit(this.rewardpool, "RewardAdded").withArgs(pendingVwave)
 
       let lpStakeAmount = getBigNumber(200)
       await this.lp.approve(this.rewardpool.address, lpStakeAmount)
@@ -104,12 +109,20 @@ describe("VoterChefPool", function () {
       
 
       await advanceTime(86400) // +24 hours
-      //advanceBlock() // needed for reward pool
+      advanceBlock() // needed for reward pool
       //console.log("rewardpool.rewardPerToken: " + await this.rewardpool.rewardPerToken())  
 
       expect(await this.vwave.balanceOf(this.alice.address)).to.be.equal(getBigNumber(0))
+
+      let earnedVwaveReward = await this.rewardpool.earned(this.alice.address)       
       await expect(this.rewardpool.getReward()).to.emit(this.rewardpool, "RewardPaid")
-      expect(await this.vwave.balanceOf(this.alice.address)).to.be.not.equal(getBigNumber(0))
+
+      let vwaveBalance = await this.vwave.balanceOf(this.alice.address)
+      expect(vwaveBalance).to.be.not.equal(getBigNumber(0))
+      console.log("balanceOf: " + vwaveBalance)
+      console.log("earnedVwaveReward: " + earnedVwaveReward)
+
+      //expect(await this.vwave.balanceOf(this.alice.address)).to.be.equal(earnedVwaveReward)
 
       // let earnedVwaveReward = await this.rewardpool.earned(this.alice.address)
       // console.log("earnedVwaveReward: " + earnedVwaveReward)  

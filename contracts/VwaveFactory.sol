@@ -19,7 +19,7 @@ contract VwaveFactory is Ownable {
         address indexed voter
     );
     uint8 constant DEFAULT_ALLOC_POINT = 1;
-
+    uint256 public constant VWAVE_PER_SECOND = 10000000000000000;
     mapping(address=>bool) private _isVoter;
 
     MiniChefV2 public immutable miniChef;
@@ -30,7 +30,7 @@ contract VwaveFactory is Ownable {
 
     constructor(IERC20 govToken_, IBoringERC20 vwave_) public {
         MiniChefV2 miniChef_ = new MiniChefV2(vwave_);
-        miniChef_.setVwavePerSecond(10000000000000000);
+        miniChef_.setVwavePerSecond(VWAVE_PER_SECOND);
         miniChef = miniChef_;
         
         govToken = govToken_;
