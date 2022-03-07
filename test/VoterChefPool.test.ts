@@ -8,18 +8,18 @@ const { BigNumber } = require("ethers")
 
 
 describe("VoterChefPool", function () {
-  
+
   before(async function () {
-    await prepare(this, ["MiniChefV2", 
-                        "VwaveToken", 
-                        "ERC20Mock", 
-                        "RewarderMock", 
-                        "RewarderBrokenMock", 
-                        "Voter", 
-                        "GovToken", 
-                        "VwaveRewarder",
-                        "VwaveFactory",
-                        "RewardPool"])
+    await prepare(this, ["MiniChefV2",
+      "VwaveToken",
+      "ERC20Mock",
+      "RewarderMock",
+      "RewarderBrokenMock",
+      "Voter",
+      "GovToken",
+      "VwaveRewarder",
+      "VwaveFactory",
+      "RewardPool"])
     await deploy(this, [["brokenRewarder", this.RewarderBrokenMock]])
   })
 
@@ -37,7 +37,7 @@ describe("VoterChefPool", function () {
 
     await deploy(this, [["factory", this.VwaveFactory, [this.govt.address, this.vwave.address]]])
     this.chef = await this.MiniChefV2.attach(await this.factory.getChef())
-    
+
     let voterTx = await (await this.factory.newVoter(this.rewardpool.address)).wait()
     let voterAddress = voterTx.events.filter(x => x.event == "LOG_NEW_VOTER")[0].args["voter"]
     this.voter = await this.Voter.attach(voterAddress)
@@ -51,26 +51,41 @@ describe("VoterChefPool", function () {
   })
 
 
-  describe("Simple Vote", function () {
+  describe.only("Simple Vote", function () {
     it("voteCount == 0", async function () {
       expect(await this.voter.voteCount()).to.be.equal(0)
     })
-    
+
     it("alice has govt", async function () {
       let govtBalance = getBigNumber(10000)
       expect(await this.govt.balanceOf(this.alice.address)).to.be.equal(govtBalance)
     })
 
     it("alice votes", async function () {
-        let govtBalance = await this.govt.balanceOf(this.alice.address)
-        expect(govtBalance).to.be.equal(getBigNumber(10000))
-        let voteCount = getBigNumber(100)
-        await this.govt.approve(this.voter.address, voteCount)
-        expect(await this.govt.allowance(this.alice.address, this.voter.address)).to.be.equal(voteCount)
-        await this.voter.vote(voteCount)
-        expect(await this.voter.voteCount()).to.be.equal(voteCount)
+      let govtBalance = await this.govt.balanceOf(this.alice.address)
+      expect(govtBalance).to.be.equal(getBigNumber(10000))
+      let voteCount = getBigNumber(100)
+      await this.govt.approve(this.voter.address, voteCount)
+      expect(await this.govt.allowance(this.alice.address, this.voter.address)).to.be.equal(voteCount)
+      await this.voter.vote(voteCount)
+      expect(await this.voter.voteCount()).to.be.equal(voteCount)
+      let govtBalanceAfterVote = await this.govt.balanceOf(this.alice.address)
+      expect(govtBalanceAfterVote).to.be.equal(getBigNumber(10000 - 100))
+    })
+
+    it("alice can't vote without approving govt", async function () {
+      let voteCount = getBigNumber(100)
+      expect(await this.voter.vote(voteCount)).to.throw("ERC20: transfer amount exceeds allowance")
+    })
+
+    it.skip("alice unvotes", async function () {
+      let voteCount = getBigNumber(100)
+      await this.govt.approve(this.voter.address, voteCount)
+      await this.voter.vote(voteCount)
+
+
     })
   })
 
- }
+}
 )
