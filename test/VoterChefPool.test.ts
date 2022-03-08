@@ -87,7 +87,7 @@ describe("VoterChefPool", function () {
       expect(await this.rewardpool.earned(this.alice.address)).to.be.equal(getBigNumber(0))
       expect(await this.rewardpool.rewardPerToken()).to.be.equal(getBigNumber(0))      
       expect(await this.rewardpool.lastTimeRewardApplicable()).to.be.equal(await this.rewardpool.lastUpdateTime())
-      
+
       await advanceTime(86400) // +24 hours
 
       expect(await this.vwave.balanceOf(this.alice.address)).to.be.equal(getBigNumber(0))
@@ -111,10 +111,20 @@ describe("VoterChefPool", function () {
       let govtBalance = getBigNumber(10000)
       expect(await this.govt.balanceOf(this.alice.address)).to.be.equal(govtBalance)
     })
-    
+
     it("alice can't vote without approving govt", async function () {
       let voteCount = getBigNumber(100)
       await expect(this.voter.vote(voteCount)).to.be.revertedWith("ERC20: transfer amount exceeds allowance")
+    })
+
+    it("harvest all", async function () {
+      let govtBalance = await this.govt.balanceOf(this.alice.address)
+      let voteCount = getBigNumber(100)
+      await this.govt.approve(this.voter.address, voteCount)
+      let logVote = await this.voter.vote(voteCount)
+      await advanceTime(86400) // +24 hours, seems to work for Chef
+      let pendingVwave = await this.chef.pendingVwave(0, this.voter.address).add(this.VWAVE_PER_SECOND);
+      expect(await this.factory.harvestAll()).to.changeTokenBalance(this.vwave, this.rewardPool, pendingVwave);
     })
 
   })
