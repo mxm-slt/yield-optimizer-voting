@@ -41,7 +41,6 @@ contract Voter is IVoter, Ownable {
     ERC20PresetMinterPauser immutable _voteToken;
     uint private _totalTokenAmount;
     mapping(address => uint256) private _userVotes;
-    address[] private _users;
 
     uint8 constant DEFAULT_ALLOC_POINT = 1;
 
