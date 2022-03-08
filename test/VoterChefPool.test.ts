@@ -87,12 +87,7 @@ describe("VoterChefPool", function () {
       let expectedVwave = BigNumber.from(this.VWAVE_PER_SECOND).mul(timestamp2 - timestamp)
       let pendingVwave = await this.chef.pendingVwave(0, this.voter.address)
       expect(pendingVwave).to.be.equal(expectedVwave)
-      // 864010000000000000000
-      //     10000000000000000
-      // 864000000000000000000
-      //console.log("expectedVwave: " + ethers.utils.formatEther(pendingVwave))
-      //console.log("VWAVE_PER_SECOND: " + this.VWAVE_PER_SECOND)
-      await expect(this.voter.harvest()).to.emit(this.rewardpool, "RewardAdded").withArgs(pendingVwave)
+      await expect(this.voter.harvest()).to.emit(this.rewardpool, "RewardAdded")
 
       let lpStakeAmount = getBigNumber(200)
       await this.lp.approve(this.rewardpool.address, lpStakeAmount)
@@ -103,14 +98,8 @@ describe("VoterChefPool", function () {
       expect(await this.rewardpool.earned(this.alice.address)).to.be.equal(getBigNumber(0))
       expect(await this.rewardpool.rewardPerToken()).to.be.equal(getBigNumber(0))      
       expect(await this.rewardpool.lastTimeRewardApplicable()).to.be.equal(await this.rewardpool.lastUpdateTime())
-
-      //console.log("rewardpool.rewardRate" + await this.rewardpool.lastTimeRewardApplicable())      
-      //console.log("rewardpool.rewardRate" + await this.rewardpool.rewardRate())
       
-
       await advanceTime(86400) // +24 hours
-      advanceBlock() // needed for reward pool
-      //console.log("rewardpool.rewardPerToken: " + await this.rewardpool.rewardPerToken())  
 
       expect(await this.vwave.balanceOf(this.alice.address)).to.be.equal(getBigNumber(0))
 
@@ -119,24 +108,9 @@ describe("VoterChefPool", function () {
 
       let vwaveBalance = await this.vwave.balanceOf(this.alice.address)
       expect(vwaveBalance).to.be.not.equal(getBigNumber(0))
-      console.log("balanceOf: " + vwaveBalance)
-      console.log("earnedVwaveReward: " + earnedVwaveReward)
-
-      //expect(await this.vwave.balanceOf(this.alice.address)).to.be.equal(earnedVwaveReward)
-
-      // let earnedVwaveReward = await this.rewardpool.earned(this.alice.address)
-      // console.log("earnedVwaveReward: " + earnedVwaveReward)  
-
-      // expect(await this.vwave.balanceOf(this.alice.address)).to.be.equal(earnedVwaveReward)
-
-
-      //expect(await this.rewardpool.rewardPerToken()).to.be.not.equal(getBigNumber(0))
-      //expect(await this.rewardpool.lastTimeRewardApplicable()).to.be.not.equal(await this.rewardpool.lastUpdateTime())
-      //expect(earnedVwaveReward).to.be.not.equal((getBigNumber(0)))
 
       await this.voter.unvote(voteCount)
       expect(await this.govt.balanceOf(this.alice.address)).to.be.equal(govtBalance)
-
 
 
     })
