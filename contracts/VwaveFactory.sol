@@ -10,7 +10,7 @@ import "./VwaveRewarder.sol";
 // MiniChef is owned by Factory
 // VoterToken is owned by Factory
 // Voter is owned by Factory
-// 
+// TODO harvestAll()
 contract VwaveFactory is Ownable {
     bytes32 private constant MINTER_ROLE = keccak256("MINTER_ROLE");
 
