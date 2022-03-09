@@ -7,6 +7,11 @@ import "@openzeppelin/contracts/math/SafeMath.sol";
 import "./MiniChefV2.sol";
 import "@openzeppelin/contracts/presets/ERC20PresetMinterPauser.sol";
 
+// TODO
+// 1. Use single pool inside mini chef
+// 2. Add integration test Voter -> Minichef -> RewardPool
+// 3. 
+
 // Each voter has a corresponding ERC20 token to send to MiniChef
 // Exchange rate between tokens is always 1:1, 1 GovToken == 1 VoteToken
 interface IVoter {
@@ -19,7 +24,7 @@ interface IVoter {
 
     function harvest() external;
 
-    function voteCount() external returns (uint256);
+    function voteCount() external view returns (uint256);
 
     function pause() external;
 
@@ -41,19 +46,22 @@ contract Voter is IVoter, Ownable {
 
     uint8 constant DEFAULT_ALLOC_POINT = 1;
 
-    constructor(MiniChefV2 miniChef_, IERC20 govToken_, address rewardPool_) public {
+    constructor(MiniChefV2 miniChef_, 
+                uint256 chefPoolId_, 
+                IERC20 govToken_, 
+                address rewardPool_, 
+                ERC20PresetMinterPauser voteToken_) public {
         govToken = govToken_;
         miniChef = miniChef_;
-        ERC20PresetMinterPauser voteToken = new ERC20PresetMinterPauser("Voter", "VTR");
-        chefPoolId = miniChef_.add(DEFAULT_ALLOC_POINT, IBoringERC20(address(voteToken)), IRewarder(0));
-        _voteToken = voteToken;
+        _voteToken = voteToken_;
         rewardPoolAddress = rewardPool_;
+        chefPoolId = chefPoolId_;
     }
 
     function vote(uint256 tokenAmount) external override {
         require(this.isActive(), "Voting is inactive");
         // transferring GovToken from user to this contract
-        govToken.transfer(address(this), tokenAmount);
+        govToken.transferFrom(msg.sender, address(this), tokenAmount);
         // remember user vote count
         _userVotes[msg.sender] = _userVotes[msg.sender].add(tokenAmount);
         // mint and approve VoteToken transfer, the transfer will be done by miniChef
@@ -80,7 +88,7 @@ contract Voter is IVoter, Ownable {
         miniChef.harvest(chefPoolId, rewardPoolAddress);
     }
 
-    function voteCount() external override returns (uint256) {
+    function voteCount() external override view returns (uint256) {
         return _userVotes[msg.sender];
     }
 
@@ -93,7 +101,7 @@ contract Voter is IVoter, Ownable {
     }
 
     function isActive() external override returns (bool) {
-        return _voteToken.paused();
+        return !_voteToken.paused();
     }
 
 }
