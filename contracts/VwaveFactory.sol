@@ -18,9 +18,11 @@ contract VwaveFactory is Ownable {
         address indexed caller,
         address indexed voter
     );
+
     uint8 constant DEFAULT_ALLOC_POINT = 1;
     uint256 public constant VWAVE_PER_SECOND = 10000000000000000;
-    mapping(address=>bool) private _isVoter;
+    mapping(address => bool) private _isVoter;
+    Voter[] private _voters;
 
     MiniChefV2 public immutable miniChef;
     IERC20 public immutable govToken;
@@ -29,19 +31,20 @@ contract VwaveFactory is Ownable {
     VwaveRewarder public immutable _vwaveRewarder;
 
     constructor(IERC20 govToken_, IBoringERC20 vwave_) public {
-        MiniChefV2 miniChef_ = new MiniChefV2(vwave_);
-        miniChef_.setVwavePerSecond(VWAVE_PER_SECOND);
-        miniChef = miniChef_;
-        
+        MiniChefV2 aMiniChef = new MiniChefV2(vwave_);
+        aMiniChef.setVwavePerSecond(VWAVE_PER_SECOND);
+        miniChef = aMiniChef;
+
         govToken = govToken_;
 
         ERC20PresetMinterPauser voteToken = new ERC20PresetMinterPauser("Voter", "VTR");
         _voteToken = voteToken;
 
-        VwaveRewarder rewarder = new VwaveRewarder(); // Rewarder notifies RewardPool 
+        VwaveRewarder rewarder = new VwaveRewarder();
+        // Rewarder notifies RewardPool
         _vwaveRewarder = rewarder;
 
-        chefPoolId = miniChef_.add(DEFAULT_ALLOC_POINT, IBoringERC20(address(voteToken)), IRewarder(rewarder));
+        chefPoolId = aMiniChef.add(DEFAULT_ALLOC_POINT, IBoringERC20(address(voteToken)), IRewarder(rewarder));
     }
 
     function getChef() external view returns (MiniChefV2) {
@@ -53,25 +56,32 @@ contract VwaveFactory is Ownable {
     }
 
     function isVoter(address b)
-        external view returns (bool)
+    external view returns (bool)
     {
         return _isVoter[b];
     }
 
     function newVoter(address rewardPool_)
-        external
-        onlyOwner
-        returns (Voter)
-    {        
+    external
+    onlyOwner
+    returns (Voter)
+    {
         // this must be exectued by the rewardPool_ owner
-        //rewardPool_.setRewardDistribution(address(_vwaveRewarder)); 
+        //rewardPool_.setRewardDistribution(address(_vwaveRewarder));
 
         Voter voter = new Voter(miniChef, chefPoolId, govToken, rewardPool_, _voteToken);
         _voteToken.grantRole(MINTER_ROLE, address(voter));
         _isVoter[address(voter)] = true;
+        _voters.push(voter);
         emit LOG_NEW_VOTER(msg.sender, address(voter));
         return voter;
     }
 
+    function harvestAll() external {
+        uint voterCount = _voters.length;
+        for (uint i = 0; i < voterCount; i++) {
+            _voters[i].harvest();
+        }
+    }
 
 }
