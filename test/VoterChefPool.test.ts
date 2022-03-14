@@ -19,7 +19,7 @@ describe("VoterChefPool", function () {
       "GovToken",
       "VwaveRewarder",
       "VwaveFactory",
-      "RewardPool"])
+      "VaporwaveRewardPoolV2"])
     await deploy(this, [["brokenRewarder", this.RewarderBrokenMock]])
   })
 
@@ -27,16 +27,15 @@ describe("VoterChefPool", function () {
     await deploy(this, [["vwave", this.VwaveToken]])
     await deploy(this, [["govt", this.GovToken]])
     await deploy(this, [["lp", this.ERC20Mock, ["LP Token", "LPT", getBigNumber(10)]]])
-    await deploy(this, [["rewardpool", this.RewardPool, [this.lp.address, this.vwave.address]],])
-      
-
+    await deploy(this, [["rewardpool", this.VaporwaveRewardPoolV2, [this.lp.address, this.vwave.address]],])
     await deploy(this, [["factory", this.VwaveFactory, [this.govt.address, this.vwave.address]]])
+
     this.chef = await this.MiniChefV2.attach(await this.factory.getChef())
     this.VWAVE_PER_SECOND = await this.factory.VWAVE_PER_SECOND()
 
     // only MiniChef can distribute rewards to RewardPools
-    await this.rewardpool.setRewardDistribution(await this.factory.getVwaveRewarder()) 
-
+    let rewarder = await this.factory.getVwaveRewarder()
+    await this.rewardpool.setKeeper(rewarder)
 
     let voterTx = await (await this.factory.newVoter(this.rewardpool.address)).wait()
     let voterAddress = voterTx.events.filter(x => x.event == "LOG_NEW_VOTER")[0].args["voter"]
@@ -50,7 +49,6 @@ describe("VoterChefPool", function () {
 
 
   describe.only("Simple Vote", function () {
-
 
     it("alice votes", async function () {
       let govtBalance = await this.govt.balanceOf(this.alice.address)
@@ -123,8 +121,13 @@ describe("VoterChefPool", function () {
       await this.govt.approve(this.voter.address, voteCount)
       let logVote = await this.voter.vote(voteCount)
       await advanceTime(86400) // +24 hours, seems to work for Chef
-      let pendingVwave = await this.chef.pendingVwave(0, this.voter.address).add(this.VWAVE_PER_SECOND);
-      expect(await this.factory.harvestAll()).to.changeTokenBalance(this.vwave, this.rewardPool, pendingVwave);
+
+      let pendingVwave = await this.chef.pendingVwave(0, this.voter.address)
+      await this.factory.harvestAll()
+
+      let vwaveBalance = await this.vwave.balanceOf(this.alice.address)
+
+      // TODO
     })
 
   })

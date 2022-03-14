@@ -9,25 +9,29 @@ import "./interfaces/IRewardDistributionRecipient.sol";
 import "./LPTokenWrapper.sol";
 
 // https://github.com/beefyfinance/beefy-protocol/blob/master/contracts/RewardPool.sol
-contract RewardPool is LPTokenWrapper, IRewardDistributionRecipient {
-    //IERC20 public vwavetoken = IERC20(0x0000000000000000000000000000000000000000);
-    IERC20 public immutable vwavetoken;
-    uint256 public constant DURATION = 60 days;
+contract VaporwaveRewardPoolV2 is LPTokenWrapper, Ownable, IRewardDistributionRecipient {
+    IERC20 public rewardToken;  //  wETH
+    uint256 public constant DURATION = 1 days;  //  86400
 
-    uint256 public periodFinish = 0;
-    uint256 public rewardRate = 0;
+    uint256 public periodFinish = 0;    //  default 0, added through notifyRewards
+    uint256 public rewardRate = 0;      //  default 0, added through notifyRewards
     uint256 public lastUpdateTime;
     uint256 public rewardPerTokenStored;
     mapping(address => uint256) public userRewardPerTokenPaid;
     mapping(address => uint256) public rewards;
+
+    address public keeper;
 
     event RewardAdded(uint256 reward);
     event Staked(address indexed user, uint256 amount);
     event Withdrawn(address indexed user, uint256 amount);
     event RewardPaid(address indexed user, uint256 reward);
 
-    constructor (IERC20 _vaultLPTpoken, IERC20 _vwavetoken) public LPTokenWrapper(_vaultLPTpoken) {
-        vwavetoken = _vwavetoken;
+    constructor(address _stakedToken, address _rewardToken)
+    public
+    LPTokenWrapper(_stakedToken)
+    {
+        rewardToken = IERC20(_rewardToken);
     }
 
     modifier updateReward(address account) {
@@ -40,6 +44,18 @@ contract RewardPool is LPTokenWrapper, IRewardDistributionRecipient {
         _;
     }
 
+    /**
+    * @dev Throws if called by any account other than the keeper.
+    */
+    modifier onlyKeeper() {
+        require(msg.sender == owner() || msg.sender == keeper, "!keeper");
+        _;
+    }
+
+    function setKeeper(address _keeper) external onlyOwner {
+        keeper = _keeper;
+    }
+
     function lastTimeRewardApplicable() public view returns (uint256) {
         return Math.min(block.timestamp, periodFinish);
     }
@@ -49,27 +65,26 @@ contract RewardPool is LPTokenWrapper, IRewardDistributionRecipient {
             return rewardPerTokenStored;
         }
         return
-            rewardPerTokenStored.add(
-                lastTimeRewardApplicable()
-                    .sub(lastUpdateTime)
-                    .mul(rewardRate)
-                    .mul(1e18)
-                    .div(totalSupply())
-            );
+        rewardPerTokenStored.add(
+            lastTimeRewardApplicable()
+            .sub(lastUpdateTime)
+            .mul(rewardRate)
+            .mul(1e18)
+            .div(totalSupply())
+        );
     }
 
     function earned(address account) public view returns (uint256) {
         return
-            balanceOf(account)
-                .mul(rewardPerToken().sub(userRewardPerTokenPaid[account]))
-                .div(1e18)
-                .add(rewards[account]);
+        balanceOf(account)
+        .mul(rewardPerToken().sub(userRewardPerTokenPaid[account]))
+        .div(1e18)
+        .add(rewards[account]);
     }
 
     // stake visibility is public as overriding LPTokenWrapper's stake() function
     function stake(uint256 amount) public override updateReward(msg.sender) {
         require(amount > 0, "Cannot stake 0");
-        //require(block.timestamp > 1600790400, "Cannot stake yet");
         super.stake(amount);
         emit Staked(msg.sender, amount);
     }
@@ -89,16 +104,16 @@ contract RewardPool is LPTokenWrapper, IRewardDistributionRecipient {
         uint256 reward = earned(msg.sender);
         if (reward > 0) {
             rewards[msg.sender] = 0;
-            vwavetoken.safeTransfer(msg.sender, reward);
+            rewardToken.safeTransfer(msg.sender, reward);
             emit RewardPaid(msg.sender, reward);
         }
     }
 
     function notifyRewardAmount(uint256 reward)
-        external
-        onlyRewardDistribution
-        override
-        updateReward(address(0))
+    external
+    override
+    onlyKeeper
+    updateReward(address(0))
     {
         if (block.timestamp >= periodFinish) {
             rewardRate = reward.div(DURATION);
@@ -111,4 +126,13 @@ contract RewardPool is LPTokenWrapper, IRewardDistributionRecipient {
         periodFinish = block.timestamp.add(DURATION);
         emit RewardAdded(reward);
     }
+
+    function inCaseTokensGetStuck(address _token) external onlyOwner {
+        require(_token != address(stakedToken), "!staked");
+        require(_token != address(rewardToken), "!reward");
+
+        uint256 amount = IERC20(_token).balanceOf(address(this));
+        IERC20(_token).safeTransfer(msg.sender, amount);
+    }
+
 }

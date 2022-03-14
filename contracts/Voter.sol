@@ -7,6 +7,20 @@ import "@openzeppelin/contracts/math/SafeMath.sol";
 import "./MiniChefV2.sol";
 import "@openzeppelin/contracts/presets/ERC20PresetMinterPauser.sol";
 
+// Time lock multiplicator ideas:
+// If user stores X amount of funds for at least T days, he's given extra X*m extra VoteTokens that
+// are deposited to MiniChef. Any withdrawal resets extra VoteTokens.
+// Implementation questions:
+// 1. Where to store this information?
+//      A. Instead of storing just vote count per user inside voter we can introduce UserInfo structure
+//         UserInfo(uint voteCount, uint minVoteCountPerPeriod, uint minVoteCountUpdateTime, uint extraVotes).
+//         How we work with it:
+//         vote(): voteCount += amount, 
+//         unvote(): voteCount -= amount, minVoteCountPerPeriod = voteCount, minVoteCountTime = now(), extraVotes = 0
+//         claimExtra(): if (now() -
+//      B. 
+//
+
 // Each voter has a corresponding ERC20 token to send to MiniChef
 // Exchange rate between tokens is always 1:1, 1 GovToken == 1 VoteToken
 interface IVoter {
