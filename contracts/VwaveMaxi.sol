@@ -57,7 +57,6 @@ contract VwaveMaxi is StratManager, FeeManager {
     // puts the funds to work
     function deposit() public whenNotPaused {
         uint256 wantBal = balanceOfWant();
-
         if (wantBal > 0) {
             IRewardPool(rewardPool).stake(wantBal);
             emit Deposit(balanceOf());

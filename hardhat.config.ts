@@ -5,6 +5,7 @@ import "@nomiclabs/hardhat-etherscan"
 import "@nomiclabs/hardhat-solhint"
 import "@tenderly/hardhat-tenderly"
 import "@nomiclabs/hardhat-waffle"
+import "@nomiclabs/hardhat-web3";
 import "hardhat-abi-exporter"
 import "hardhat-deploy"
 import "hardhat-deploy-ethers"

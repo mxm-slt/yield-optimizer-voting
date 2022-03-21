@@ -2,6 +2,7 @@ import { ADDRESS_ZERO, advanceBlock, advanceBlockTo, advanceTime, advanceTimeAnd
 import { assert, expect } from "chai"
 
 import { ethers } from "hardhat"
+const { predictAddresses } = require("./predictAddresses");
 
 const { BigNumber } = require("ethers")
 
@@ -17,9 +18,10 @@ describe.only("VoterChefPool", function () {
       "RewarderBrokenMock",
       "UniswapRouterMock",
       "Voter",
-      "GovToken",
       "VwaveRewarder",
       "VwaveFactory",
+      "VwaveMaxi",
+      "VaporGovVault",
       "VaporwaveFeeRecipientV2",
       "VaporwaveRewardPoolV2"])
     await deploy(this, [["brokenRewarder", this.RewarderBrokenMock]])
@@ -38,7 +40,6 @@ describe.only("VoterChefPool", function () {
     
     this.chef = await this.MiniChefV2.attach(await this.factory.getChef())
     this.VWAVE_PER_SECOND = await this.factory.VWAVE_PER_SECOND()
-
 
 
   //   constructor(
@@ -60,6 +61,39 @@ describe.only("VoterChefPool", function () {
     await this.vwaveWETHRewardPool.setKeeper(this.feeReceipient.address)
 
 
+    // constructor(
+    //   address _want,
+    //   address _rewardPool,
+    //   address _vault,
+    //   address _unirouter,
+    //   address _keeper,
+    //   address _strategist,
+    //   address _vwaveFeeRecipient,
+    //   address[] memory _outputToWantRoute
+
+    const predictedAddresses = await predictAddresses({ creator: this.alice.address });
+
+    // await deploy(this, [["vwaveMaxi", this.VwaveMaxi, 
+    //                     [ this.vwave.address, 
+    //                       this.vwaveWETHRewardPool.address,
+
+    //                     ]]])
+
+    
+
+
+    // await deploy(this, [["govVault", this.VaporGovVault, 
+    //                     [ ]]])
+
+
+
+    // IStrategy _strategy,
+    // string memory _name,
+    // string memory _symbol,
+    // uint256 _approvalDelay
+
+
+    
     // only MiniChef can distribute rewards to RewardPools
     let rewarder = await this.factory.getVwaveRewarder()
     await this.rewardpoolA.setKeeper(rewarder)

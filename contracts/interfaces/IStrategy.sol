@@ -5,7 +5,7 @@ pragma solidity 0.6.12;
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 interface IStrategy {
-    function vault() external view returns (address);
+    function vault() external view returns (address); // TODO none of the strategies implement this???
     function want() external view returns (IERC20);
     function beforeDeposit() external;
     function deposit() external;
