@@ -17,8 +17,8 @@ contract VwaveMaxi is StratManager, FeeManager {
     using SafeMath for uint256;
 
     // Tokens used
-    address public output;
-    address public want;
+    address public output; // wnative
+    address public want;  // VWAVE
 
     // Third party contracts
     address public rewardPool;
