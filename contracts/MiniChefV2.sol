@@ -204,7 +204,7 @@ contract MiniChefV2 is BoringOwnable {
         // Effects
         user.amount = user.amount.add(amount);
         user.rewardDebt = user.rewardDebt.add(int256(amount.mul(pool.accVwavePerShare) / ACC_VWAVE_PRECISION));
-
+        
         // Interactions
         IRewarder _rewarder = rewarder[pid];
         if (address(_rewarder) != address(0)) {
