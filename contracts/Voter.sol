@@ -9,30 +9,10 @@ import "@openzeppelin/contracts/presets/ERC20PresetMinterPauser.sol";
 import "hardhat/console.sol";
 
 
-// vote(amount) + lock(amount, time)
-// unvote(amount) - check whether there are unlockable votes (locked but expired)
-//
-
-// 1. deposit(amount, time)
-// 2. undeposit()
-
-
-
-
-
-// Time lock multiplicator ideas:
-// If user stores X amount of funds for at least T days, he's given extra X*m extra VoteTokens that
-// are deposited to MiniChef. Any withdrawal resets extra VoteTokens.
-// Implementation questions:
-// 1. Where to store this information?
-//      A. Instead of storing just vote count per user inside voter we can introduce UserInfo structure
-//         UserInfo(uint voteCount, uint minVoteCountPerPeriod, uint minVoteCountUpdateTime, uint extraVotes).
-//         How we work with it:
-//         vote(): voteCount += amount, 
-//         unvote(): voteCount -= amount, minVoteCountPerPeriod = voteCount, minVoteCountTime = now(), extraVotes = 0
-//         claimExtra(): if (now() -
-//      B. 
-//
+// TODO
+// 1. retire() function (make sure user can unvote locked tokens in this state)
+// 2. extensive testing
+// 3. trim contracts (esp migrators etc)
 
 // Each voter has a corresponding ERC20 token to send to MiniChef
 // Exchange rate between tokens is always 1:1, 1 GovToken == 1 VoteToken
@@ -42,6 +22,7 @@ interface IVoter {
     event Lock(address indexed user, uint256 amount, uint256 duration);
     event Paused();
     event Unpaused();
+    event Retired();
 
     // deposit tokens without time lock
     function vote(uint256 govTokenAmount) external;
@@ -73,8 +54,12 @@ interface IVoter {
 
     function unpause() external;
 
-    function isActive() external returns (bool);
-}
+    function retire() external;
+
+    function isActive() external view returns (bool);
+
+    function isRetired() external view returns (bool);
+}                                                                                      
 
 contract Voter is IVoter, Ownable {
     using SafeMath for uint256;
@@ -102,7 +87,9 @@ contract Voter is IVoter, Ownable {
     uint private _totalVoteTokenAmount;
     mapping(address => UserInfo) private _userVotes;
 
-    bool public active = true;
+    enum State{ACTIVE, PAUSED, RETIRED}
+
+    State public state = State.ACTIVE;
 
     constructor(MiniChefV2 miniChef_,
         uint256 chefPoolId_,
@@ -116,7 +103,7 @@ contract Voter is IVoter, Ownable {
         chefPoolId = chefPoolId_;
     }
 
-    function doVote(uint256 tokenAmount) private {
+    function vote(uint256 tokenAmount) external override {
         require(this.isActive(), "Voting is paused");
         // transferring GovToken from user to this contract
         govToken.transferFrom(msg.sender, address(this), tokenAmount);
@@ -128,11 +115,7 @@ contract Voter is IVoter, Ownable {
         emit Vote(msg.sender, tokenAmount);
     }
 
-    function vote(uint256 tokenAmount) external override {
-        doVote(tokenAmount);
-    }
-
-    function doLock(uint256 govTokenAmount, uint256 durationSeconds) private {
+    function lock(uint256 govTokenAmount, uint256 durationSeconds) external override {
         require(this.isActive(), "Voting is paused");
         require(durationSeconds >= MIN_TIME_LOCK && durationSeconds <= MAX_TIME_LOCK, "Invalid duration");
         UserInfo storage userInfo = _userVotes[msg.sender];
@@ -150,27 +133,43 @@ contract Voter is IVoter, Ownable {
         depositVotesToMinichef(userInfo.lockBonus);
     }
 
-    function lock(uint256 govTokenAmount, uint256 durationSeconds) external override {
-        doLock(govTokenAmount, durationSeconds);
-    }
-
     function voteWithLock(uint256 govTokenAmount, uint256 durationSeconds) external override {
-        doVote(govTokenAmount);
-        doLock(govTokenAmount, durationSeconds);
+        require(this.isActive(), "Voting is paused");
+        require(durationSeconds >= MIN_TIME_LOCK && durationSeconds <= MAX_TIME_LOCK, "Invalid duration");
+        UserInfo storage userInfo = _userVotes[msg.sender];
+        // make sure we have no active time locked deposit
+        require(userInfo.lockExpiration < block.timestamp, "Time lock already present");
+        unlockExpired(userInfo);
+        // transferring GovToken from user to this contract
+        govToken.transferFrom(msg.sender, address(this), govTokenAmount);
+
+        // create new lock
+        userInfo.lockedAmount = govTokenAmount;
+        userInfo.lockExpiration = block.timestamp + durationSeconds;
+        userInfo.lockBonus = govTokenAmount.mul(durationSeconds).div(MAX_TIME_LOCK).mul(MAX_TIME_LOCK_MULTIPLIER_PCNT).div(100);
+        // deposit main and bonus amount to miniChef
+        depositVotesToMinichef(userInfo.lockedAmount.add(userInfo.lockBonus));
+
+        emit Vote(msg.sender, govTokenAmount);
     }
 
     function unvote(uint256 tokenAmount) external override {
         // decrease user vote count
         UserInfo storage userInfo = _userVotes[msg.sender];
+        if (state == State.RETIRED) {
+            // make sure unlockExpired() will unlock
+            userInfo.lockExpiration = 0;
+        }
         unlockExpired(userInfo);
+
         userInfo.unlockedAmount = userInfo.unlockedAmount.sub(tokenAmount, "Not enough non-locked votes");
         _totalVoteTokenAmount = _totalVoteTokenAmount.sub(tokenAmount);
-
-        if (active) {
+        if (state == State.ACTIVE) {
             withdrawVotesFromMinichef(tokenAmount);
         } else {
-            // withdrawal and burning already done when pausing
+            // withdrawal and burning already done when pausing or retiring
         }
+
         // send user their GovToken
         govToken.transfer(msg.sender, tokenAmount);
         emit Unvote(msg.sender, tokenAmount);
@@ -203,26 +202,43 @@ contract Voter is IVoter, Ownable {
     }
 
     function pause() external override onlyOwner {
-        require(this.isActive(), "Voting is already paused");
-        active = false;
-        if (_totalVoteTokenAmount > 0) {
-            miniChef.withdrawAndHarvest(chefPoolId, _totalVoteTokenAmount, rewardPoolAddress);
-            _voteToken.burn(_totalVoteTokenAmount);
-        }
+        require(state == State.ACTIVE, "Voting is not active");
+        state = State.PAUSED;
+        withdrawAndHarvestAll();
         emit Paused();
     }
 
     function unpause() external override onlyOwner {
-        require(!this.isActive(), "Voting is active");
-        active = true;
+        require(state == State.PAUSED, "Voting is not paused");
+        state = State.ACTIVE;
         if (_totalVoteTokenAmount > 0) {
             depositVotesToMinichef(_totalVoteTokenAmount);
         }
         emit Unpaused();
     }
 
-    function isActive() external override returns (bool) {
-        return active;
+    function retire() external override {
+        require(state != State.RETIRED, "Already retired");
+        if (state == State.ACTIVE) {
+            withdrawAndHarvestAll();
+        }
+        state = State.RETIRED;
+        emit Retired();
+    }
+
+    function isActive() external view override returns (bool) {
+        return state == State.ACTIVE;
+    }
+
+    function isRetired() external view override returns (bool) {
+        return state == State.RETIRED;
+    }
+
+    function withdrawAndHarvestAll() private {
+        miniChef.harvest(chefPoolId, rewardPoolAddress);
+        if (_totalVoteTokenAmount > 0) {
+            withdrawVotesFromMinichef(_totalVoteTokenAmount);
+        }
     }
 
     function withdrawVotesFromMinichef(uint256 tokenAmount) private {
@@ -243,6 +259,7 @@ contract Voter is IVoter, Ownable {
 
     function unlockExpired(UserInfo storage userInfo) private {
         if (userInfo.lockExpiration < block.timestamp && userInfo.lockedAmount > 0) {
+//            console.log("Unlocking expired", userInfo.lockExpiration, userInfo.lockedAmount);
             userInfo.unlockedAmount = userInfo.unlockedAmount.add(userInfo.lockedAmount);
             if (userInfo.lockBonus > 0) {
                 withdrawVotesFromMinichef(userInfo.lockBonus);
