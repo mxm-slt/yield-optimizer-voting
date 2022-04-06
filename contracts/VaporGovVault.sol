@@ -19,13 +19,13 @@ contract VaporGovVault is ERC20, Ownable, ReentrancyGuard {
     using SafeERC20 for IERC20;
     using SafeMath for uint256;
 
-    struct StratCandidate {
-        address implementation;
-        uint proposedTime;
-    }
+    // struct StratCandidate {
+    //     address implementation;
+    //     uint proposedTime;
+    // }
 
     // The last proposed strategy to switch to.
-    StratCandidate public stratCandidate;
+    // StratCandidate public stratCandidate;
     // The strategy currently in use by the vault.
     IStrategy public strategy;
     // The minimum time it has to pass before a strat candidate can be approved.
@@ -160,15 +160,15 @@ contract VaporGovVault is ERC20, Ownable, ReentrancyGuard {
      * @dev Sets the candidate for the new strat to use with this vault.
      * @param _implementation The address of the candidate strategy.  
      */
-    function proposeStrat(address _implementation) public onlyOwner {
-        require(address(this) == IStrategy(_implementation).vault(), "Proposal not valid for this Vault");
-        stratCandidate = StratCandidate({
-            implementation: _implementation,
-            proposedTime: block.timestamp
-         });
+    // function proposeStrat(address _implementation) public onlyOwner {
+    //     require(address(this) == IStrategy(_implementation).vault(), "Proposal not valid for this Vault");
+    //     stratCandidate = StratCandidate({
+    //         implementation: _implementation,
+    //         proposedTime: block.timestamp
+    //      });
 
-        emit NewStratCandidate(_implementation);
-    }
+    //     emit NewStratCandidate(_implementation);
+    // }
 
     /** 
      * @dev It switches the active strat for the strat candidate. After upgrading, the 
@@ -176,19 +176,19 @@ contract VaporGovVault is ERC20, Ownable, ReentrancyGuard {
      * happening in +100 years for safety. 
      */
 
-    function upgradeStrat() public onlyOwner {
-        require(stratCandidate.implementation != address(0), "There is no candidate");
-        require(stratCandidate.proposedTime.add(approvalDelay) < block.timestamp, "Delay has not passed");
+    // function upgradeStrat() public onlyOwner {
+    //     require(stratCandidate.implementation != address(0), "There is no candidate");
+    //     require(stratCandidate.proposedTime.add(approvalDelay) < block.timestamp, "Delay has not passed");
 
-        emit UpgradeStrat(stratCandidate.implementation);
+    //     emit UpgradeStrat(stratCandidate.implementation);
 
-        strategy.retireStrat();
-        strategy = IStrategy(stratCandidate.implementation);
-        stratCandidate.implementation = address(0);
-        stratCandidate.proposedTime = 5000000000;
+    //     strategy.retireStrat();
+    //     strategy = IStrategy(stratCandidate.implementation);
+    //     stratCandidate.implementation = address(0);
+    //     stratCandidate.proposedTime = 5000000000;
 
-        earn();
-    }
+    //     earn();
+    // }
 
     /**
      * @dev Rescues random funds stuck that the strat can't handle.

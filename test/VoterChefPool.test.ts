@@ -81,6 +81,79 @@ describe.only("VoterChefPool", function () {
 
 
   describe("Integration tests", function () {
+    it("rewardpool: 1 voter, 1 day", async function () {
+      let wnativeFees = getBigNumber(100)
+      // Vaporwave farming fees go fee receipient
+      await this.wnative.transfer(this.feeReceipient.address, wnativeFees)
+      expect(await this.wnative.balanceOf(this.feeReceipient.address)).to.be.equal(getBigNumber(100))
+      // Harvest fees
+      await this.feeReceipient.harvest() 
+      // 75% weth goes to vwaveWETHRewardPool
+      expect(await this.wnative.balanceOf(this.vwaveWETHRewardPool.address)).to.be.equal(getBigNumber(75))
+      // 25% weth used to buy VWAVE that go to minichef, for testing purposes: 1 vwave = 1 weth
+      expect(await this.vwave.balanceOf(this.chef.address)).to.be.equal(getBigNumber(10025)) 
+      // no one stacked anything
+      expect(await this.vwaveWETHRewardPool.totalSupply()).to.be.equal(0);
+      // let's stake some
+      let vwaveStake = getBigNumber(500)
+      await this.vwave.mint(this.alice.address, vwaveStake)
+      await this.vwave.approve(this.vwaveWETHRewardPool.address, vwaveStake)
+      await this.vwaveWETHRewardPool.stake(vwaveStake)
+
+      await advanceTime(86400)
+      await advanceBlock()
+
+      let rewardPerToken = await this.vwaveWETHRewardPool.rewardPerToken()
+      let expectedReward = rewardPerToken.mul(vwaveStake).div(ethers.BigNumber.from("10").pow(18))
+      
+      let balanceBeforeReward = await this.wnative.balanceOf(this.alice.address)    
+      await expect(this.vwaveWETHRewardPool.getReward()).to.emit(this.vwaveWETHRewardPool, "RewardPaid").withArgs(this.alice.address, expectedReward)      
+      let balanceAfterReward = await this.wnative.balanceOf(this.alice.address)
+      expect(balanceAfterReward.sub(balanceBeforeReward)).to.equal(expectedReward)
+      //console.log(ethers.utils.formatEther(expectedReward.sub(getBigNumber(75))))
+      expect(expectedReward.sub(getBigNumber(75)).abs().lt(getBigNumber(1))).to.equal(true)
+      
+    })
+
+
+    it("rewardpool: 2 voters, 1 day", async function () {
+      let wnativeFees = getBigNumber(100)
+      // Vaporwave farming fees go fee receipient
+      await this.wnative.transfer(this.feeReceipient.address, wnativeFees)
+      expect(await this.wnative.balanceOf(this.feeReceipient.address)).to.be.equal(getBigNumber(100))
+      // Harvest fees
+      await this.feeReceipient.harvest() 
+      // 75% weth goes to vwaveWETHRewardPool
+      expect(await this.wnative.balanceOf(this.vwaveWETHRewardPool.address)).to.be.equal(getBigNumber(75))
+      // 25% weth used to buy VWAVE that go to minichef, for testing purposes: 1 vwave = 1 weth
+      expect(await this.vwave.balanceOf(this.chef.address)).to.be.equal(getBigNumber(10025)) 
+      // no one stacked anything
+      expect(await this.vwaveWETHRewardPool.totalSupply()).to.be.equal(0);
+      // let's stake some
+      let vwaveStake = getBigNumber(500)
+      await this.vwave.mint(this.alice.address, vwaveStake)
+      await this.vwave.mint(this.bob.address, vwaveStake)
+      await this.vwave.approve(this.vwaveWETHRewardPool.address, vwaveStake)
+      await this.vwave.connect(this.bob).approve(this.vwaveWETHRewardPool.address, vwaveStake)
+      await this.vwaveWETHRewardPool.stake(vwaveStake)
+      await this.vwaveWETHRewardPool.connect(this.bob).stake(vwaveStake)
+
+      await advanceTime(86400)
+      await advanceBlock()
+
+      let rewardPerToken = await this.vwaveWETHRewardPool.rewardPerToken()
+      let expectedReward = rewardPerToken.mul(vwaveStake).div(ethers.BigNumber.from("10").pow(18))
+      
+      let balanceBeforeReward = await this.wnative.balanceOf(this.alice.address)    
+      await expect(this.vwaveWETHRewardPool.getReward()).to.emit(this.vwaveWETHRewardPool, "RewardPaid").withArgs(this.alice.address, expectedReward)      
+      let balanceAfterReward = await this.wnative.balanceOf(this.alice.address)
+      expect(balanceAfterReward.sub(balanceBeforeReward)).to.equal(expectedReward)
+      //console.log(ethers.utils.formatEther(expectedReward.sub(getBigNumber(75))))
+      expect(expectedReward.sub(getBigNumber(75).div(2)).abs().lt(getBigNumber(1))).to.equal(true)
+      
+    })
+
+
     it("fee receipient + rewardpool + govvault + vwave maxi", async function () {
 
       let wnativeFees = getBigNumber(100)
@@ -111,8 +184,8 @@ describe.only("VoterChefPool", function () {
       await this.vwaveMaxi.managerHarvest()
       await this.govVault.withdrawAll()
       // check that we now have more than 500 VWAVE after withdrawing
-      let newVwaveDeposit = await this.vwave.balanceOf(this.alice.address)
-      expect(newVwaveDeposit.gt(vwaveDeposit)).to.be.true
+      let newVwaveBalance = await this.vwave.balanceOf(this.alice.address)
+      expect(newVwaveBalance.gt(vwaveDeposit)).to.be.true
     })
 
     it("alice votes", async function () {
