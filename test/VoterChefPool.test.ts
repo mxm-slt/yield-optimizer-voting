@@ -128,17 +128,17 @@ describe.only("VoterChefPool", function () {
       let vwaveDeposit = getBigNumber(700)
       await this.vwave.mint(this.alice.address, vwaveDeposit)
       let balance = await this.vwave.balanceOf(this.alice.address)
-      let vwaveTotalDeposit = getBigNumber(1200)   // 500+700
+      let vwaveTotalDeposit = getBigNumber(1200)   // 500+700 = 1200 
       expect(balance).to.be.equal(vwaveTotalDeposit)
 
       await this.vwave.approve(this.vaporVaultV3.address, vwaveTotalDeposit)
+      // deposit VWAVE into the vault
+      await this.vaporVaultV3.depositAll() // 1200 VWAVE 
 
       // give some wnative to the pool to distribute
-      let rewardAmount = getBigNumber(3000)
+      let rewardAmount = getBigNumber(3000) // weth ~ wnative 
       await this.wnative.mint(this.vwaveWETHRewardPool.address, rewardAmount) 
 
-      // deposit VWAVE into the vault
-      await this.vaporVaultV3.depositAll()
 
       /// --- HACK: artificially call notifyreward because only Fee Recepient can do this
       await this.vwaveWETHRewardPool.setKeeper(this.alice.address)
@@ -161,6 +161,7 @@ describe.only("VoterChefPool", function () {
       let feeEarnings = afterFees.sub(beforeFees)
       let totalSupplyAfterHarvest = await this.vwaveWETHRewardPool.totalSupply()
       // we've earned all reward weth from the pool and swapped them for the VWAVE (minus fees)
+      // +3000 VWAVE - feeEarnings 
       // 1 VWAVE = 1 WETH
       let expectedTotalSupply = vwaveTotalDeposit.add(rewardAmount).sub(feeEarnings)
       let supplyDiff = totalSupplyAfterHarvest.sub(expectedTotalSupply).abs()
