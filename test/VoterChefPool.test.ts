@@ -50,10 +50,6 @@ describe.only("VoterChefPool", function () {
     await this.vwaveWETHRewardPool.setKeeper(this.feeReceipient.address)
 
     const predictedAddresses = await predictAddresses({ creator: this.alice.address });
-
-    // await deploy(this, [["govVault", this.VaporGovVault, 
-    //                     [predictedAddresses.strategy,
-    //                     "Gov Token", "GVT", 21600 ]]])
     
     await deploy(this, [["vaporVaultV3", this.VaporVaultV3, 
                         [predictedAddresses.strategy,
@@ -62,7 +58,6 @@ describe.only("VoterChefPool", function () {
     await deploy(this, [["vwaveMaxi", this.VwaveMaxi, 
                         [ this.vwave.address, 
                           this.vwaveWETHRewardPool.address,
-                          //this.govVault.address,
                           this.vaporVaultV3.address,
                           this.unirouterNative2VWAVe.address,
                           this.alice.address,
@@ -88,7 +83,7 @@ describe.only("VoterChefPool", function () {
 
   describe("Integration tests", function () {
 
-    it("vault + maxi: 1 voter, 1 day", async function () {
+    it("vault + maxi + rewardpool", async function () {
       let wnativeFees = getBigNumber(100)
       // Vaporwave farming fees go fee receipient
       await this.wnative.transfer(this.feeReceipient.address, wnativeFees)
@@ -121,12 +116,14 @@ describe.only("VoterChefPool", function () {
       // expect the reward to be roughly equal 75
       expect(expectedReward.sub(getBigNumber(75)).abs().lt(getBigNumber(1))).to.equal(true)
       let rewardPerTokenAfterGetReward = await this.vwaveWETHRewardPool.rewardPerToken()
-      expect(rewardPerTokenAfterGetReward.lt(getBigNumber(1))).to.equal(true) // only dust remains
-      await this.vwaveWETHRewardPool.withdraw(vwaveStake) // unstake
+
+      // check that only dust remains
+      expect(rewardPerTokenAfterGetReward.lt(getBigNumber(1))).to.equal(true) 
+
+      await this.vwaveWETHRewardPool.withdraw(vwaveStake) // unstake and check
       expect(await this.vwave.balanceOf(this.alice.address)).to.be.equal(vwaveStake)
       expect(await this.vwaveWETHRewardPool.totalSupply()).to.be.equal(0)
 
-    
       // MAXI and Vault
       let vwaveDeposit = getBigNumber(700)
       await this.vwave.mint(this.alice.address, vwaveDeposit)
@@ -143,10 +140,10 @@ describe.only("VoterChefPool", function () {
       // deposit VWAVE into the vault
       await this.vaporVaultV3.depositAll()
 
-      /// hack ----------
+      /// --- HACK: artificially call notifyreward because only Fee Recepient can do this
       await this.vwaveWETHRewardPool.setKeeper(this.alice.address)
       await this.vwaveWETHRewardPool.notifyRewardAmount(rewardAmount)
-      /// ---------------
+      /// --------------------------------------------------------------------------------
 
       expect(await this.vwave.balanceOf(this.alice.address)).to.be.equal(0)
       expect(await this.vaporVaultV3.balance()).to.be.equal(vwaveTotalDeposit)
@@ -163,6 +160,7 @@ describe.only("VoterChefPool", function () {
       let afterFees = await this.wnative.balanceOf(this.alice.address)
       let feeEarnings = afterFees.sub(beforeFees)
       let totalSupplyAfterHarvest = await this.vwaveWETHRewardPool.totalSupply()
+      // we've earned all reward weth from the pool and swapped them for the VWAVE (minus fees)
       let expectedTotalSupply = vwaveTotalDeposit.add(rewardAmount).sub(feeEarnings)
       let supplyDiff = totalSupplyAfterHarvest.sub(expectedTotalSupply).abs()
       console.log(ethers.utils.formatEther(totalSupplyAfterHarvest))
