@@ -83,7 +83,7 @@ describe.only("VoterChefPool", function () {
 
   describe("Integration tests", function () {
 
-    it("vault + maxi + rewardpool", async function () {
+    it("fee recepient + reward pool + vault + maxi", async function () {
       let wnativeFees = getBigNumber(100)
       // Vaporwave farming fees go fee receipient
       await this.wnative.transfer(this.feeReceipient.address, wnativeFees)
@@ -129,7 +129,7 @@ describe.only("VoterChefPool", function () {
       await this.vwave.mint(this.alice.address, vwaveDeposit)
       let balance = await this.vwave.balanceOf(this.alice.address)
       let vwaveTotalDeposit = getBigNumber(1200)   // 500+700
-      expect(balance).to.be.equal(vwaveTotalDeposit) // 500+700
+      expect(balance).to.be.equal(vwaveTotalDeposit)
 
       await this.vwave.approve(this.vaporVaultV3.address, vwaveTotalDeposit)
 
@@ -161,6 +161,7 @@ describe.only("VoterChefPool", function () {
       let feeEarnings = afterFees.sub(beforeFees)
       let totalSupplyAfterHarvest = await this.vwaveWETHRewardPool.totalSupply()
       // we've earned all reward weth from the pool and swapped them for the VWAVE (minus fees)
+      // 1 VWAVE = 1 WETH
       let expectedTotalSupply = vwaveTotalDeposit.add(rewardAmount).sub(feeEarnings)
       let supplyDiff = totalSupplyAfterHarvest.sub(expectedTotalSupply).abs()
       console.log(ethers.utils.formatEther(totalSupplyAfterHarvest))
