@@ -243,7 +243,7 @@ contract Voter is IVoter, Ownable {
 
     function withdrawVotesFromMinichef(uint256 tokenAmount) private {
         // withdraw VoteToken from minichef
-        miniChef.withdraw(chefPoolId, tokenAmount, address(this));
+        miniChef.withdraw(chefPoolId, tokenAmount);
         // burn withdrawn vote tokens
         _voteToken.burn(tokenAmount);
     }
@@ -254,7 +254,7 @@ contract Voter is IVoter, Ownable {
         _voteToken.mint(address(this), tokenAmount);
         _voteToken.approve(address(miniChef), tokenAmount);
         // deposit VoteToken to our contract address
-        miniChef.deposit(chefPoolId, tokenAmount, address(this));
+        miniChef.deposit(chefPoolId, tokenAmount);
     }
 
     function unlockExpired(UserInfo storage userInfo) private {

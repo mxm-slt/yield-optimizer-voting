@@ -6,7 +6,7 @@ import "@openzeppelin/contracts/math/Math.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 import "./interfaces/IRewardDistributionRecipient.sol";
-import "./LPTokenWrapper.sol";
+import "./libraries/LPTokenWrapper.sol";
 
 // https://github.com/beefyfinance/beefy-protocol/blob/master/contracts/RewardPool.sol
 contract VaporwaveRewardPoolV2 is LPTokenWrapper, Ownable, IRewardDistributionRecipient {

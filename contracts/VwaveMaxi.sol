@@ -17,8 +17,8 @@ contract VwaveMaxi is StratManager, FeeManager {
     using SafeMath for uint256;
 
     // Tokens used
-    address public output;
-    address public want;
+    address public output; // wnative
+    address public want;  // VWAVE
 
     // Third party contracts
     address public rewardPool;
@@ -57,7 +57,6 @@ contract VwaveMaxi is StratManager, FeeManager {
     // puts the funds to work
     function deposit() public whenNotPaused {
         uint256 wantBal = balanceOfWant();
-
         if (wantBal > 0) {
             IRewardPool(rewardPool).stake(wantBal);
             emit Deposit(balanceOf());

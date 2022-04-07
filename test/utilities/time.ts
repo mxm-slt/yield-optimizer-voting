@@ -2,6 +2,10 @@ const { ethers } = require("hardhat")
 
 const { BigNumber } = ethers
 
+export async function getCurrentBlockTime() {
+  return (await ethers.provider.getBlock(await ethers.provider.getBlockNumber())).timestamp  
+}
+
 export async function advanceBlock() {
   return ethers.provider.send("evm_mine", [])
 }

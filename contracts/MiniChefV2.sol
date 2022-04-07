@@ -11,11 +11,6 @@ import "./interfaces/IRewarder.sol";
 import "./interfaces/IMasterChef.sol";
 import "./interfaces/IRewardDistributionRecipient.sol";
 
-interface IMigratorChef {
-    // Take the current LP token address and return the new LP token address.
-    // Migrator should have full access to the caller's LP token.
-    function migrate(IBoringERC20 token) external returns (IBoringERC20);
-}
 
 /// @notice The (older) MasterChef contract gives out a constant number of VWAVE tokens per block.
 /// It is the only address with minting rights for VWAVE.
@@ -47,8 +42,6 @@ contract MiniChefV2 is BoringOwnable {
 
     /// @notice Address of VWAVE contract.
     IBoringERC20 public immutable VWAVE;
-    // @notice The migrator contract. It has a lot of power. Can only be set through governance (owner).
-    IMigratorChef public migrator;
 
     /// @notice Info of each MCV2 pool.
     PoolInfo[] public poolInfo;
@@ -94,6 +87,7 @@ contract MiniChefV2 is BoringOwnable {
     /// @param _lpToken Address of the LP ERC-20 token.
     /// @param _rewarder Address of the rewarder delegate.
     function add(uint256 allocPoint, IBoringERC20 _lpToken, IRewarder _rewarder) public onlyOwner returns (uint256 pid){
+        require(poolLength() <= 1, "Only one pool can be added");
         require(addedTokens[address(_lpToken)] == false, "Token already added");
         totalAllocPoint = totalAllocPoint.add(allocPoint);
         lpToken.push(_lpToken);
@@ -114,12 +108,12 @@ contract MiniChefV2 is BoringOwnable {
     /// @param _allocPoint New AP of the pool.
     /// @param _rewarder Address of the rewarder delegate.
     /// @param overwrite True if _rewarder should be `set`. Otherwise `_rewarder` is ignored.
-    function set(uint256 _pid, uint256 _allocPoint, IRewarder _rewarder, bool overwrite) public onlyOwner {
-        totalAllocPoint = totalAllocPoint.sub(poolInfo[_pid].allocPoint).add(_allocPoint);
-        poolInfo[_pid].allocPoint = _allocPoint.to64();
-        if (overwrite) {rewarder[_pid] = _rewarder;}
-        emit LogSetPool(_pid, _allocPoint, overwrite ? _rewarder : rewarder[_pid], overwrite);
-    }
+    // function set(uint256 _pid, uint256 _allocPoint, IRewarder _rewarder, bool overwrite) public onlyOwner {
+    //     totalAllocPoint = totalAllocPoint.sub(poolInfo[_pid].allocPoint).add(_allocPoint);
+    //     poolInfo[_pid].allocPoint = _allocPoint.to64();
+    //     if (overwrite) {rewarder[_pid] = _rewarder;}
+    //     emit LogSetPool(_pid, _allocPoint, overwrite ? _rewarder : rewarder[_pid], overwrite);
+    // }
 
     /// @notice Sets the vwave per second to be distributed. Can only be called by the owner.
     /// @param _vwavePerSecond The amount of Vwave to be distributed per second.
@@ -128,26 +122,6 @@ contract MiniChefV2 is BoringOwnable {
         emit LogVwavePerSecond(_vwavePerSecond);
     }
 
-    /// @notice Set the `migrator` contract. Can only be called by the owner.
-    /// @param _migrator The contract address to set.
-    function setMigrator(IMigratorChef _migrator) public onlyOwner {
-        migrator = _migrator;
-    }
-
-    /// @notice Migrate LP token to another LP contract through the `migrator` contract.
-    /// @param _pid The index of the pool. See `poolInfo`.
-    function migrate(uint256 _pid) public {
-        require(address(migrator) != address(0), "MasterChefV2: no migrator set");
-        IBoringERC20 _lpToken = lpToken[_pid];
-        uint256 bal = _lpToken.balanceOf(address(this));
-        _lpToken.approve(address(migrator), bal);
-        IBoringERC20 newLpToken = migrator.migrate(_lpToken);
-        require(bal == newLpToken.balanceOf(address(this)), "MasterChefV2: migrated balance must match");
-        require(addedTokens[address(newLpToken)] == false, "Token already added");
-        addedTokens[address(newLpToken)] = true;
-        addedTokens[address(_lpToken)] = false;
-        lpToken[_pid] = newLpToken;
-    }
 
     /// @notice View function to see pending VWAVE on frontend.
     /// @param _pid The index of the pool. See `poolInfo`.
@@ -196,31 +170,29 @@ contract MiniChefV2 is BoringOwnable {
     /// @notice Deposit LP tokens to MCV2 for VWAVE allocation.
     /// @param pid The index of the pool. See `poolInfo`.
     /// @param amount LP token amount to deposit.
-    /// @param to The receiver of `amount` deposit benefit.
-    function deposit(uint256 pid, uint256 amount, address to) public {
+    function deposit(uint256 pid, uint256 amount) public {
         PoolInfo memory pool = updatePool(pid);
-        UserInfo storage user = userInfo[pid][to];
+        UserInfo storage user = userInfo[pid][msg.sender];
 
         // Effects
         user.amount = user.amount.add(amount);
         user.rewardDebt = user.rewardDebt.add(int256(amount.mul(pool.accVwavePerShare) / ACC_VWAVE_PRECISION));
         
         // Interactions
-        IRewarder _rewarder = rewarder[pid];
-        if (address(_rewarder) != address(0)) {
-            _rewarder.onVwaveReward(pid, to, to, 0, user.amount);
-        }
+        // IRewarder _rewarder = rewarder[pid];
+        // if (address(_rewarder) != address(0)) {
+        //     _rewarder.onVwaveReward(pid, to, to, 0, user.amount);
+        // }
 
         lpToken[pid].safeTransferFrom(msg.sender, address(this), amount);
 
-        emit Deposit(msg.sender, pid, amount, to);
+        emit Deposit(msg.sender, pid, amount, msg.sender);
     }
 
     /// @notice Withdraw LP tokens from MCV2.
     /// @param pid The index of the pool. See `poolInfo`.
     /// @param amount LP token amount to withdraw.
-    /// @param to Receiver of the LP tokens.
-    function withdraw(uint256 pid, uint256 amount, address to) public {
+    function withdraw(uint256 pid, uint256 amount) public {
         PoolInfo memory pool = updatePool(pid);
         UserInfo storage user = userInfo[pid][msg.sender];
 
@@ -229,14 +201,14 @@ contract MiniChefV2 is BoringOwnable {
         user.amount = user.amount.sub(amount);
 
         // Interactions
-        IRewarder _rewarder = rewarder[pid];
-        if (address(_rewarder) != address(0)) {
-            _rewarder.onVwaveReward(pid, msg.sender, to, 0, user.amount);
-        }
+        // IRewarder _rewarder = rewarder[pid];
+        // if (address(_rewarder) != address(0)) {
+        //     _rewarder.onVwaveReward(pid, msg.sender, to, 0, user.amount);
+        // }
 
-        lpToken[pid].safeTransfer(to, amount);
+        lpToken[pid].safeTransfer(msg.sender, amount);
 
-        emit Withdraw(msg.sender, pid, amount, to);
+        emit Withdraw(msg.sender, pid, amount, msg.sender);
     }
 
     /// @notice Harvest proceeds for transaction sender to `to`.
@@ -294,20 +266,19 @@ contract MiniChefV2 is BoringOwnable {
 
     /// @notice Withdraw without caring about rewards. EMERGENCY ONLY.
     /// @param pid The index of the pool. See `poolInfo`.
-    /// @param to Receiver of the LP tokens.
-    function emergencyWithdraw(uint256 pid, address to) public {
+    function emergencyWithdraw(uint256 pid) public {
         UserInfo storage user = userInfo[pid][msg.sender];
         uint256 amount = user.amount;
         user.amount = 0;
         user.rewardDebt = 0;
 
-        IRewarder _rewarder = rewarder[pid];
-        if (address(_rewarder) != address(0)) {
-            _rewarder.onVwaveReward(pid, msg.sender, to, 0, 0);
-        }
+        // IRewarder _rewarder = rewarder[pid];
+        // if (address(_rewarder) != address(0)) {
+        //     _rewarder.onVwaveReward(pid, msg.sender, to, 0, 0);
+        // }
 
         // Note: transfer can fail or succeed if `amount` is zero.
-        lpToken[pid].safeTransfer(to, amount);
-        emit EmergencyWithdraw(msg.sender, pid, amount, to);
+        lpToken[pid].safeTransfer(msg.sender, amount);
+        emit EmergencyWithdraw(msg.sender, pid, amount, msg.sender);
     }
 }
