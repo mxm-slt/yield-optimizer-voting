@@ -20,6 +20,7 @@ describe.only("VoterChefPool", function () {
       "VwaveFactory",
       "VwaveMaxi",
       "VaporGovVault",
+      "VaporVaultV3",
       "VaporwaveFeeRecipientV2",
       "VaporwaveRewardPoolV2"])
     await deploy(this, [["brokenRewarder", this.RewarderBrokenMock]])
@@ -50,14 +51,19 @@ describe.only("VoterChefPool", function () {
 
     const predictedAddresses = await predictAddresses({ creator: this.alice.address });
 
-    await deploy(this, [["govVault", this.VaporGovVault, 
+    // await deploy(this, [["govVault", this.VaporGovVault, 
+    //                     [predictedAddresses.strategy,
+    //                     "Gov Token", "GVT", 21600 ]]])
+    
+    await deploy(this, [["vaporVaultV3", this.VaporVaultV3, 
                         [predictedAddresses.strategy,
-                        "Gov Token", "GVT", 21600 ]]])
+                        "vaporVaultV3 Token", "VVV3"]]])
 
     await deploy(this, [["vwaveMaxi", this.VwaveMaxi, 
                         [ this.vwave.address, 
                           this.vwaveWETHRewardPool.address,
-                          this.govVault.address,
+                          //this.govVault.address,
+                          this.vaporVaultV3.address,
                           this.unirouterNative2VWAVe.address,
                           this.alice.address,
                           this.bob.address,
@@ -81,7 +87,56 @@ describe.only("VoterChefPool", function () {
 
 
   describe("Integration tests", function () {
-    it("rewardpool: 1 voter, 1 day", async function () {
+
+    it("vault + maxi: 1 voter, 1 day", async function () {
+      let wnativeFees = getBigNumber(100)
+      // Vaporwave farming fees go fee receipient
+      await this.wnative.transfer(this.feeReceipient.address, wnativeFees)
+      expect(await this.wnative.balanceOf(this.feeReceipient.address)).to.be.equal(getBigNumber(100))
+      // Harvest fees
+      await this.feeReceipient.harvest() 
+      // 75% weth goes to vwaveWETHRewardPool
+      expect(await this.wnative.balanceOf(this.vwaveWETHRewardPool.address)).to.be.equal(getBigNumber(75))
+      // 25% weth used to buy VWAVE that go to minichef, for testing purposes: 1 vwave = 1 weth
+      expect(await this.vwave.balanceOf(this.chef.address)).to.be.equal(getBigNumber(10025)) 
+      // no one stacked anything
+      expect(await this.vwaveWETHRewardPool.totalSupply()).to.be.equal(0)
+      // let's stake some
+      let vwaveStake = getBigNumber(500)
+      await this.vwave.mint(this.alice.address, vwaveStake)
+      await this.vwave.approve(this.vwaveWETHRewardPool.address, vwaveStake)
+      await this.vwaveWETHRewardPool.stake(vwaveStake)
+      expect(await this.vwave.balanceOf(this.alice.address)).to.be.equal(0)
+
+      await advanceTime(86400)
+      await advanceBlock()
+
+      let rewardPerToken = await this.vwaveWETHRewardPool.rewardPerToken()
+      let expectedReward = rewardPerToken.mul(vwaveStake).div(ethers.BigNumber.from("10").pow(18))
+      
+      let balanceBeforeReward = await this.wnative.balanceOf(this.alice.address)    
+      await expect(this.vwaveWETHRewardPool.getReward()).to.emit(this.vwaveWETHRewardPool, "RewardPaid").withArgs(this.alice.address, expectedReward)      
+      let balanceAfterReward = await this.wnative.balanceOf(this.alice.address)
+      expect(balanceAfterReward.sub(balanceBeforeReward)).to.equal(expectedReward)
+      //console.log(ethers.utils.formatEther(expectedReward.sub(getBigNumber(75))))
+      expect(expectedReward.sub(getBigNumber(75)).abs().lt(getBigNumber(1))).to.equal(true)
+      
+      let vwaveDeposit = getBigNumber(700)
+      await this.vwave.mint(this.alice.address, vwaveDeposit)
+      expect(await this.vwave.balanceOf(this.alice.address)).to.be.equal(vwaveDeposit)
+      
+      await this.vwave.approve(this.vaporVaultV3.address, vwaveDeposit)
+      await this.vaporVaultV3.depositAll()
+      expect(await this.vwave.balanceOf(this.alice.address)).to.be.equal(0)
+      expect(await this.vaporVaultV3.balance()).to.be.equal(vwaveDeposit)
+
+      await advanceTime(86400)
+      await advanceBlock()
+
+    })
+
+
+    it("feeReceipient + rewardpool: 1 voter, 1 day", async function () {
       let wnativeFees = getBigNumber(100)
       // Vaporwave farming fees go fee receipient
       await this.wnative.transfer(this.feeReceipient.address, wnativeFees)
@@ -116,7 +171,7 @@ describe.only("VoterChefPool", function () {
     })
 
 
-    it("rewardpool: 2 voters, 1 day", async function () {
+    it("feeReceipient + rewardpool: 2 voters, 1 day", async function () {
       let wnativeFees = getBigNumber(100)
       // Vaporwave farming fees go fee receipient
       await this.wnative.transfer(this.feeReceipient.address, wnativeFees)
@@ -170,10 +225,11 @@ describe.only("VoterChefPool", function () {
       // a user deposits VWAVE to get gov tokens
       let vwaveDeposit = getBigNumber(500)
       await this.vwave.mint(this.alice.address, vwaveDeposit)
-      await this.vwave.approve(this.govVault.address, vwaveDeposit)
-      await this.govVault.deposit(vwaveDeposit)
+      //await this.vwave.approve(this.govVault.address, vwaveDeposit)
+      await this.vwave.approve(this.vaporVaultV3.address, vwaveDeposit)            
+      await this.vaporVaultV3.deposit(vwaveDeposit) //await this.govVault.deposit(vwaveDeposit)
       // check that a user have received gov token
-      expect(await this.govVault.balanceOf(this.alice.address)).to.be.equal(vwaveDeposit) 
+      expect(await this.vaporVaultV3.balanceOf(this.alice.address)).to.be.equal(vwaveDeposit)  // expect(await this.govVault.balanceOf(this.alice.address)).to.be.equal(vwaveDeposit) 
       expect(await this.vwave.balanceOf(this.alice.address)).to.be.equal(0) 
 
       await advanceBlock()
@@ -182,7 +238,7 @@ describe.only("VoterChefPool", function () {
       // we expect some rewards to be generated
       expect(rewardsAvailable.gt(0)).to.be.true
       await this.vwaveMaxi.managerHarvest()
-      await this.govVault.withdrawAll()
+      await this.vaporVaultV3.withdrawAll() // await this.govVault.withdrawAll()
       // check that we now have more than 500 VWAVE after withdrawing
       let newVwaveBalance = await this.vwave.balanceOf(this.alice.address)
       expect(newVwaveBalance.gt(vwaveDeposit)).to.be.true
