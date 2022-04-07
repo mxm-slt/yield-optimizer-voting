@@ -118,20 +118,57 @@ describe.only("VoterChefPool", function () {
       await expect(this.vwaveWETHRewardPool.getReward()).to.emit(this.vwaveWETHRewardPool, "RewardPaid").withArgs(this.alice.address, expectedReward)      
       let balanceAfterReward = await this.wnative.balanceOf(this.alice.address)
       expect(balanceAfterReward.sub(balanceBeforeReward)).to.equal(expectedReward)
-      //console.log(ethers.utils.formatEther(expectedReward.sub(getBigNumber(75))))
+      // expect the reward to be roughly equal 75
       expect(expectedReward.sub(getBigNumber(75)).abs().lt(getBigNumber(1))).to.equal(true)
-      
+      let rewardPerTokenAfterGetReward = await this.vwaveWETHRewardPool.rewardPerToken()
+      expect(rewardPerTokenAfterGetReward.lt(getBigNumber(1))).to.equal(true) // only dust remains
+      await this.vwaveWETHRewardPool.withdraw(vwaveStake) // unstake
+      expect(await this.vwave.balanceOf(this.alice.address)).to.be.equal(vwaveStake)
+      expect(await this.vwaveWETHRewardPool.totalSupply()).to.be.equal(0)
+
+    
+      // MAXI and Vault
       let vwaveDeposit = getBigNumber(700)
       await this.vwave.mint(this.alice.address, vwaveDeposit)
-      expect(await this.vwave.balanceOf(this.alice.address)).to.be.equal(vwaveDeposit)
-      
-      await this.vwave.approve(this.vaporVaultV3.address, vwaveDeposit)
+      let balance = await this.vwave.balanceOf(this.alice.address)
+      let vwaveTotalDeposit = getBigNumber(1200)   // 500+700
+      expect(balance).to.be.equal(vwaveTotalDeposit) // 500+700
+
+      await this.vwave.approve(this.vaporVaultV3.address, vwaveTotalDeposit)
+
+      // give some wnative to the pool to distribute
+      let rewardAmount = getBigNumber(3000)
+      await this.wnative.mint(this.vwaveWETHRewardPool.address, rewardAmount) 
+
+      // deposit VWAVE into the vault
       await this.vaporVaultV3.depositAll()
+
+      /// hack ----------
+      await this.vwaveWETHRewardPool.setKeeper(this.alice.address)
+      await this.vwaveWETHRewardPool.notifyRewardAmount(rewardAmount)
+      /// ---------------
+
       expect(await this.vwave.balanceOf(this.alice.address)).to.be.equal(0)
-      expect(await this.vaporVaultV3.balance()).to.be.equal(vwaveDeposit)
+      expect(await this.vaporVaultV3.balance()).to.be.equal(vwaveTotalDeposit)
 
       await advanceTime(86400)
       await advanceBlock()
+
+      expect(await this.vwaveWETHRewardPool.totalSupply()).to.be.equal(vwaveTotalDeposit)
+
+      let beforeFees = await this.wnative.balanceOf(this.alice.address)
+
+      await this.vwaveMaxi.managerHarvest()
+
+      let afterFees = await this.wnative.balanceOf(this.alice.address)
+      let feeEarnings = afterFees.sub(beforeFees)
+      let totalSupplyAfterHarvest = await this.vwaveWETHRewardPool.totalSupply()
+      let expectedTotalSupply = vwaveTotalDeposit.add(rewardAmount).sub(feeEarnings)
+      let supplyDiff = totalSupplyAfterHarvest.sub(expectedTotalSupply).abs()
+      console.log(ethers.utils.formatEther(totalSupplyAfterHarvest))
+      console.log(ethers.utils.formatEther(vwaveTotalDeposit.add(rewardAmount).sub(feeEarnings)))
+      console.log(ethers.utils.formatEther(supplyDiff))
+      expect(supplyDiff.lt(getBigNumber(1))).to.be.equal(true)
 
     })
 
