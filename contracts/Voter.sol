@@ -217,7 +217,7 @@ contract Voter is IVoter, Ownable {
         emit Unpaused();
     }
 
-    function retire() external override {
+    function retire() external override onlyOwner {
         require(state != State.RETIRED, "Already retired");
         if (state == State.ACTIVE) {
             withdrawAndHarvestAll();
@@ -261,8 +261,12 @@ contract Voter is IVoter, Ownable {
         if (userInfo.lockExpiration < block.timestamp && userInfo.lockedAmount > 0) {
             userInfo.unlockedAmount = userInfo.unlockedAmount.add(userInfo.lockedAmount);
             if (userInfo.lockBonus > 0) {
-                withdrawVotesFromMinichef(userInfo.lockBonus);
-                _totalVoteTokenAmount -= userInfo.lockBonus;
+                if (state == State.ACTIVE) {
+                    withdrawVotesFromMinichef(userInfo.lockBonus);
+                } else {
+                    // otherwise withdrawal already happened when retiring / pausing
+                }
+                _totalVoteTokenAmount = _totalVoteTokenAmount.sub(userInfo.lockBonus);
                 userInfo.lockBonus = 0;
             }
             userInfo.lockedAmount = 0;

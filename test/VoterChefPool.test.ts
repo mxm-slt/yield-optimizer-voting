@@ -18,7 +18,6 @@ describe.only("VoterChefPool", function () {
       "RewarderBrokenMock",
       "UniswapRouterMock",
       "Voter",
-      "GovToken",
       "VwaveRewarder",
       "VwaveFactory",
       "VwaveMaxi",
@@ -237,7 +236,7 @@ describe.only("VoterChefPool", function () {
       let vwaveBalance = await this.vwave.balanceOf(this.alice.address)
       expect(vwaveBalance).to.be.not.equal(getBigNumber(0))
 
-      await this.voter.unvote(voteCount)
+      let res = await this.voter.unvote(voteCount)
       expect(await this.govtMock.balanceOf(this.alice.address)).to.be.equal(govtBalance)
       expect(await this.voter.voteCount()).to.be.equal(getBigNumber(0))
       expect(await this.voter.totalVoteCount()).to.be.equal(getBigNumber(0))
@@ -291,6 +290,7 @@ describe.only("VoterChefPool", function () {
       expect(await this.voter.totalVoteCount()).to.be.equal(actualVoteCount)
       let govtBalanceAfterVote = await this.govtMock.balanceOf(this.alice.address)
       expect(govtBalanceAfterVote).to.be.equal(govtBalance.sub(voteCount))
+      console.log("Voted")
 
       // check the amount of reward accumulated in a Chef's pool
       let logAfter24h = await this.chef.updatePool(0)
@@ -309,6 +309,7 @@ describe.only("VoterChefPool", function () {
       await this.lp.approve(this.rewardpoolA.address, lpStakeAmount)
       let logStake = await this.rewardpoolA.stake(lpStakeAmount)
 
+      console.log("Staked")
       expect(await this.rewardpoolA.totalSupply()).to.be.equal(lpStakeAmount)
       expect(await this.rewardpoolA.balanceOf(this.alice.address)).to.be.equal(lpStakeAmount)
       expect(await this.rewardpoolA.earned(this.alice.address)).to.be.equal(getBigNumber(0))
@@ -327,7 +328,7 @@ describe.only("VoterChefPool", function () {
 
     it("alice can unvote expired lock", async function () {
       let voteCount = getBigNumber(100)
-      await this.govt.approve(this.voter.address, voteCount)
+      await this.govtMock.approve(this.voter.address, voteCount)
       let logVote = await this.voter.voteWithLock(voteCount, 60 * 60 * 24 * 7)
 
       await advanceTime(60 * 60 * 24 * 14); // +24 hours, seems to work for Chef
@@ -336,7 +337,7 @@ describe.only("VoterChefPool", function () {
 
     it("alice can't unvote locked", async function () {
       let voteCount = getBigNumber(100)
-      await this.govt.approve(this.voter.address, voteCount)
+      await this.govtMock.approve(this.voter.address, voteCount)
       let logVote = await this.voter.voteWithLock(voteCount, 60 * 60 * 24 * 7)
 
       await expect(this.voter.unvote(voteCount)).to.be.revertedWith("'Not enough non-locked votes")
@@ -344,42 +345,56 @@ describe.only("VoterChefPool", function () {
 
     it("alice can't lock, too short period", async function () {
       let voteCount = getBigNumber(100)
-      await this.govt.approve(this.voter.address, voteCount)
+      await this.govtMock.approve(this.voter.address, voteCount)
       await expect(this.voter.voteWithLock(voteCount, 60)).to.be.revertedWith("Invalid duration")
     })
 
     it("alice can't lock, too long period", async function () {
       let voteCount = getBigNumber(100)
-      await this.govt.approve(this.voter.address, voteCount)
+      await this.govtMock.approve(this.voter.address, voteCount)
 
       await expect(this.voter.voteWithLock(voteCount, 60 * 60 * 24 * 365 * 5)).to.be.revertedWith("Invalid duration")
     })
 
-      await this.voter.unvote(voteCount)
-      expect(await this.govtMock.balanceOf(this.alice.address)).to.be.equal(govtBalance)
-      expect(await this.voter.voteCount()).to.be.equal(getBigNumber(0))
-      expect(await this.voter.totalVoteCount()).to.be.equal(getBigNumber(0))
-
   })
 
-  describe.only("Retire", function () {
+  describe("Retire and pause", function () {
     it("retire and withdraw time locked", async function () {
       let voteCount = getBigNumber(100)
-      await this.govt.approve(this.voter.address, voteCount)
+      await this.govtMock.approve(this.voter.address, voteCount)
       let logVote = await this.voter.voteWithLock(voteCount, 60 * 60 * 24 * 365)
 
       await advanceTime(86400) // +24 hours
       await expect(this.voter.retire()).to.emit(this.voter, "Retired")
 
       let isRetired = await this.voter.isRetired()
-      console.log(isRetired)
       expect(isRetired).to.be.equal(true)
 
       // no crash trying to unvote locked
-      this.voter.unvote(voteCount);
-
+      await this.voter.unvote(voteCount);
+      expect(await this.voter.totalBalance()).to.be.equal(0)
     })
 
+    it("Pause and unpause" , async function() {
+      let voteCount = getBigNumber(1000)
+      await this.govtMock.approve(this.voter.address, voteCount)
+      let logVote = await this.voter.voteWithLock(getBigNumber(10), 60 * 60 * 24 * 365)
+      let logPause = await this.voter.pause()
+
+      expect(await this.voter.isActive()).to.be.equal(false)
+      expect(await this.voter.isRetired()).to.be.equal(false)
+
+      // cannot unlock timelocked when paused
+      await expect(this.voter.unvote(getBigNumber(10))).to.be.revertedWith("Not enough non-locked votes")
+
+      // cannot vote when paused
+      await expect(this.voter.vote(getBigNumber(10))).to.be.revertedWith("Voting is paused")
+
+      await this.voter.unpause()
+      // now we can vote more
+      await this.voter.vote(getBigNumber(10))
+
+    })
 
   })
 

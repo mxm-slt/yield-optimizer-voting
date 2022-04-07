@@ -66,10 +66,8 @@ contract VwaveFactory is Ownable {
     onlyOwner
     returns (Voter)
     {
-        // this must be exectued by the rewardPool_ owner
-        //rewardPool_.setRewardDistribution(address(_vwaveRewarder));
-
         Voter voter = new Voter(miniChef, chefPoolId, govToken, rewardPool_, _voteToken);
+        voter.transferOwnership(this.owner());
         _voteToken.grantRole(MINTER_ROLE, address(voter));
         _isVoter[address(voter)] = true;
         _voters.push(voter);
