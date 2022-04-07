@@ -228,7 +228,8 @@ describe.only("VoterChefPool", function () {
       console.log(isRetired)
       expect(isRetired).to.be.equal(true)
 
-      //TODO no crash trying to unvote locked
+      // no crash trying to unvote locked
+      this.voter.unvote(voteCount);
 
     })
 

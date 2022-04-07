@@ -59,7 +59,7 @@ interface IVoter {
     function isActive() external view returns (bool);
 
     function isRetired() external view returns (bool);
-}                                                                                      
+}
 
 contract Voter is IVoter, Ownable {
     using SafeMath for uint256;
@@ -259,7 +259,6 @@ contract Voter is IVoter, Ownable {
 
     function unlockExpired(UserInfo storage userInfo) private {
         if (userInfo.lockExpiration < block.timestamp && userInfo.lockedAmount > 0) {
-//            console.log("Unlocking expired", userInfo.lockExpiration, userInfo.lockedAmount);
             userInfo.unlockedAmount = userInfo.unlockedAmount.add(userInfo.lockedAmount);
             if (userInfo.lockBonus > 0) {
                 withdrawVotesFromMinichef(userInfo.lockBonus);
