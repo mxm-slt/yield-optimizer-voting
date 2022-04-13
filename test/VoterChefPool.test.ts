@@ -36,12 +36,12 @@ describe.only("VoterChefPool", function () {
     await deploy(this, [["rewardpoolA", this.VaporwaveRewardPoolV2, [this.lp.address, this.vwave.address]],])
     await deploy(this, [["vwaveWETHRewardPool", this.VaporwaveRewardPoolV2, [this.vwave.address, this.wnative.address]],])
     await deploy(this, [["factory", this.VwaveFactory, [this.govtMock.address, this.vwave.address]]])
-    
+
     this.chef = await this.MiniChefV2.attach(await this.factory.getChef())
     this.VWAVE_PER_SECOND = await this.factory.VWAVE_PER_SECOND()
 
-    await deploy(this, [["feeReceipient", this.VaporwaveFeeRecipientV2, 
-                        [ this.vwaveWETHRewardPool.address, 
+    await deploy(this, [["feeReceipient", this.VaporwaveFeeRecipientV2,
+                        [ this.vwaveWETHRewardPool.address,
                           this.unirouterNative2VWAVe.address,
                           this.vwave.address,
                           this.wnative.address,
@@ -50,13 +50,13 @@ describe.only("VoterChefPool", function () {
     await this.vwaveWETHRewardPool.setKeeper(this.feeReceipient.address)
 
     const predictedAddresses = await predictAddresses({ creator: this.alice.address });
-    
-    await deploy(this, [["vaporVaultV3", this.VaporVaultV3, 
+
+    await deploy(this, [["vaporVaultV3", this.VaporVaultV3,
                         [predictedAddresses.strategy,
                         "vaporVaultV3 Token", "VVV3"]]])
 
-    await deploy(this, [["vwaveMaxi", this.VwaveMaxi, 
-                        [ this.vwave.address, 
+    await deploy(this, [["vwaveMaxi", this.VwaveMaxi,
+                        [ this.vwave.address,
                           this.vwaveWETHRewardPool.address,
                           this.vaporVaultV3.address,
                           this.unirouterNative2VWAVe.address,
@@ -89,11 +89,11 @@ describe.only("VoterChefPool", function () {
       await this.wnative.transfer(this.feeReceipient.address, wnativeFees)
       expect(await this.wnative.balanceOf(this.feeReceipient.address)).to.be.equal(getBigNumber(100))
       // Harvest fees
-      await this.feeReceipient.harvest() 
+      await this.feeReceipient.harvest()
       // 75% weth goes to vwaveWETHRewardPool
       expect(await this.wnative.balanceOf(this.vwaveWETHRewardPool.address)).to.be.equal(getBigNumber(75))
       // 25% weth used to buy VWAVE that go to minichef, for testing purposes: 1 vwave = 1 weth
-      expect(await this.vwave.balanceOf(this.chef.address)).to.be.equal(getBigNumber(10025)) 
+      expect(await this.vwave.balanceOf(this.chef.address)).to.be.equal(getBigNumber(10025))
       // no one stacked anything
       expect(await this.vwaveWETHRewardPool.totalSupply()).to.be.equal(0)
       // let's stake some
@@ -108,9 +108,9 @@ describe.only("VoterChefPool", function () {
 
       let rewardPerToken = await this.vwaveWETHRewardPool.rewardPerToken()
       let expectedReward = rewardPerToken.mul(vwaveStake).div(ethers.BigNumber.from("10").pow(18))
-      
-      let balanceBeforeReward = await this.wnative.balanceOf(this.alice.address)    
-      await expect(this.vwaveWETHRewardPool.getReward()).to.emit(this.vwaveWETHRewardPool, "RewardPaid").withArgs(this.alice.address, expectedReward)      
+
+      let balanceBeforeReward = await this.wnative.balanceOf(this.alice.address)
+      await expect(this.vwaveWETHRewardPool.getReward()).to.emit(this.vwaveWETHRewardPool, "RewardPaid").withArgs(this.alice.address, expectedReward)
       let balanceAfterReward = await this.wnative.balanceOf(this.alice.address)
       expect(balanceAfterReward.sub(balanceBeforeReward)).to.equal(expectedReward)
       // expect the reward to be roughly equal 75
@@ -118,7 +118,7 @@ describe.only("VoterChefPool", function () {
       let rewardPerTokenAfterGetReward = await this.vwaveWETHRewardPool.rewardPerToken()
 
       // check that only dust remains
-      expect(rewardPerTokenAfterGetReward.lt(getBigNumber(1))).to.equal(true) 
+      expect(rewardPerTokenAfterGetReward.lt(getBigNumber(1))).to.equal(true)
 
       await this.vwaveWETHRewardPool.withdraw(vwaveStake) // unstake and check
       expect(await this.vwave.balanceOf(this.alice.address)).to.be.equal(vwaveStake)
@@ -128,16 +128,16 @@ describe.only("VoterChefPool", function () {
       let vwaveDeposit = getBigNumber(700)
       await this.vwave.mint(this.alice.address, vwaveDeposit)
       let balance = await this.vwave.balanceOf(this.alice.address)
-      let vwaveTotalDeposit = getBigNumber(1200)   // 500+700 = 1200 
+      let vwaveTotalDeposit = getBigNumber(1200)   // 500+700 = 1200
       expect(balance).to.be.equal(vwaveTotalDeposit)
 
       await this.vwave.approve(this.vaporVaultV3.address, vwaveTotalDeposit)
       // deposit VWAVE into the vault
-      await this.vaporVaultV3.depositAll() // 1200 VWAVE 
+      await this.vaporVaultV3.depositAll() // 1200 VWAVE
 
       // give some wnative to the pool to distribute
-      let rewardAmount = getBigNumber(3000) // weth ~ wnative 
-      await this.wnative.mint(this.vwaveWETHRewardPool.address, rewardAmount) 
+      let rewardAmount = getBigNumber(3000) // weth ~ wnative
+      await this.wnative.mint(this.vwaveWETHRewardPool.address, rewardAmount)
 
 
       /// --- HACK: artificially call notifyreward because only Fee Recepient can do this
@@ -161,7 +161,7 @@ describe.only("VoterChefPool", function () {
       let feeEarnings = afterFees.sub(beforeFees)
       let totalSupplyAfterHarvest = await this.vwaveWETHRewardPool.totalSupply()
       // we've earned all reward weth from the pool and swapped them for the VWAVE (minus fees)
-      // +3000 VWAVE - feeEarnings 
+      // +3000 VWAVE - feeEarnings
       // 1 VWAVE = 1 WETH
       let expectedTotalSupply = vwaveTotalDeposit.add(rewardAmount).sub(feeEarnings)
       let supplyDiff = totalSupplyAfterHarvest.sub(expectedTotalSupply).abs()
@@ -263,10 +263,10 @@ describe.only("VoterChefPool", function () {
       let vwaveDeposit = getBigNumber(500)
       await this.vwave.mint(this.alice.address, vwaveDeposit)
       //await this.vwave.approve(this.govVault.address, vwaveDeposit)
-      await this.vwave.approve(this.vaporVaultV3.address, vwaveDeposit)            
+      await this.vwave.approve(this.vaporVaultV3.address, vwaveDeposit)
       await this.vaporVaultV3.deposit(vwaveDeposit) //await this.govVault.deposit(vwaveDeposit)
       // check that a user have received gov token
-      expect(await this.vaporVaultV3.balanceOf(this.alice.address)).to.be.equal(vwaveDeposit)  // expect(await this.govVault.balanceOf(this.alice.address)).to.be.equal(vwaveDeposit) 
+      expect(await this.vaporVaultV3.balanceOf(this.alice.address)).to.be.equal(vwaveDeposit)  // expect(await this.govVault.balanceOf(this.alice.address)).to.be.equal(vwaveDeposit)
       expect(await this.vwave.balanceOf(this.alice.address)).to.be.equal(0) 
 
       await advanceBlock()
@@ -365,7 +365,7 @@ describe.only("VoterChefPool", function () {
   })
 
   describe("Time Lock Vote", function () {
-    it.skip("alice votes with time lock", async function () {
+    it("alice votes with time lock", async function () {
       let govtBalance = await this.govtMock.balanceOf(this.alice.address)
       expect(govtBalance).to.be.equal(getBigNumber(10000))
       let voteCount = getBigNumber(100)
@@ -415,12 +415,81 @@ describe.only("VoterChefPool", function () {
 
       let vwaveBalance = await this.vwave.balanceOf(this.alice.address)
       expect(vwaveBalance).to.be.not.equal(getBigNumber(0))
-
-      await this.voter.unvote(voteCount)
-      expect(await this.govtMock.balanceOf(this.alice.address)).to.be.equal(govtBalance)
-      expect(await this.voter.voteCount()).to.be.equal(getBigNumber(0))
-      expect(await this.voter.totalVoteCount()).to.be.equal(getBigNumber(0))
     })
+
+    it("alice can unvote expired lock", async function () {
+      let voteCount = getBigNumber(100)
+      await this.govtMock.approve(this.voter.address, voteCount)
+      let logVote = await this.voter.voteWithLock(voteCount, 60 * 60 * 24 * 7)
+
+      await advanceTime(60 * 60 * 24 * 14); // +24 hours, seems to work for Chef
+      this.voter.unvote(voteCount);
+    })
+
+    it("alice can't unvote locked", async function () {
+      let voteCount = getBigNumber(100)
+      await this.govtMock.approve(this.voter.address, voteCount)
+      let logVote = await this.voter.voteWithLock(voteCount, 60 * 60 * 24 * 7)
+
+      await expect(this.voter.unvote(voteCount)).to.be.revertedWith("'Not enough non-locked votes")
+    })
+
+    it("alice can't lock, too short period", async function () {
+      let voteCount = getBigNumber(100)
+      await this.govtMock.approve(this.voter.address, voteCount)
+      await expect(this.voter.voteWithLock(voteCount, 60)).to.be.revertedWith("Invalid duration")
+    })
+
+    it("alice can't lock, too long period", async function () {
+      let voteCount = getBigNumber(100)
+      await this.govtMock.approve(this.voter.address, voteCount)
+
+      await expect(this.voter.voteWithLock(voteCount, 60 * 60 * 24 * 365 * 5)).to.be.revertedWith("Invalid duration")
+    })
+
   })
+
+  describe("Retire and pause", function () {
+    it("retire and withdraw time locked", async function () {
+      let voteCount = getBigNumber(100)
+      await this.govtMock.approve(this.voter.address, voteCount)
+      let logVote = await this.voter.voteWithLock(voteCount, 60 * 60 * 24 * 365)
+
+      await advanceTime(86400) // +24 hours
+      await expect(this.voter.retire()).to.emit(this.voter, "Retired")
+
+      let isRetired = await this.voter.isRetired()
+      expect(isRetired).to.be.equal(true)
+
+      // no crash trying to unvote locked
+      await this.voter.unvote(voteCount);
+      expect(await this.voter.totalBalance()).to.be.equal(0)
+    })
+
+    it("Pause and unpause" , async function() {
+      let voteCount = getBigNumber(1000)
+      await this.govtMock.approve(this.voter.address, voteCount)
+      let logVote = await this.voter.voteWithLock(getBigNumber(10), 60 * 60 * 24 * 365)
+      let logPause = await this.voter.pause()
+
+      expect(await this.voter.isActive()).to.be.equal(false)
+      expect(await this.voter.isRetired()).to.be.equal(false)
+
+      // cannot unlock timelocked when paused
+      await expect(this.voter.unvote(getBigNumber(10))).to.be.revertedWith("Not enough non-locked votes")
+
+      // cannot vote when paused
+      await expect(this.voter.vote(getBigNumber(10))).to.be.revertedWith("Voting is paused")
+
+      await this.voter.unpause()
+      // now we can vote more
+      await this.voter.vote(getBigNumber(10))
+
+    })
+
+  })
+
+
+
 }
 )
