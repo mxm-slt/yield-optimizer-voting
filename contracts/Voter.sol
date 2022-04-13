@@ -8,12 +8,6 @@ import "./MiniChefV2.sol";
 import "@openzeppelin/contracts/presets/ERC20PresetMinterPauser.sol";
 import "hardhat/console.sol";
 
-
-// TODO
-// 1. retire() function (make sure user can unvote locked tokens in this state)
-// 2. extensive testing
-// 3. trim contracts (esp migrators etc)
-
 // Each voter has a corresponding ERC20 token to send to MiniChef
 // Exchange rate between tokens is always 1:1, 1 GovToken == 1 VoteToken
 interface IVoter {

@@ -274,7 +274,7 @@ describe.only("VoterChefPool", function () {
   })
 
   describe("Time Lock Vote", function () {
-    it.skip("alice votes with time lock", async function () {
+    it.only("alice votes with time lock", async function () {
       let govtBalance = await this.govtMock.balanceOf(this.alice.address)
       expect(govtBalance).to.be.equal(getBigNumber(10000))
       let voteCount = getBigNumber(100)
