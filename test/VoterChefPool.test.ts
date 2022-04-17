@@ -372,14 +372,27 @@ describe.only("VoterChefPool", function () {
       let govtBalance = await this.govtMock.balanceOf(this.alice.address)
       expect(govtBalance).to.be.equal(getBigNumber(10000))
       let voteCount = getBigNumber(100)
-      await this.govtMock.approve(this.voter.address, voteCount)
-      expect(await this.govtMock.allowance(this.alice.address, this.voter.address)).to.be.equal(voteCount)
-      let logVote = await this.voter.voteWithLock(voteCount, 60 * 60 * 24 * 365)
+      await this.govtMock.approve(this.voter.address, govtBalance)
+      expect(await this.govtMock.allowance(this.alice.address, this.voter.address)).to.be.equal(govtBalance)
+      
+      // OPTION 1 - Fails
+      // let logVote = await this.voter.voteWithLock(voteCount, 60 * 60 * 24 * 365)
+      // let actualVoteCount = voteCount.add(getBigNumber(10))
+
+      // OPTION 2 - Works 
+      // let logVote = await this.voter.vote(voteCount)
+      // let actualVoteCount = voteCount.add(getBigNumber(0))
+      
+      // OPTION 3 - Fails again
+      let lockTime = getBigNumber(1).mul(60).mul(60).mul(24).mul(365)
+      let maxLockTime = lockTime.mul(4)
+      let lockBonus = voteCount.mul(lockTime).div(maxLockTime).mul(40).div(100)
+      let logVote = await this.voter.vote(voteCount)
+      let actualVoteCount = voteCount.add(getBigNumber(10))
 
       // max pcnt = 40%, max period = 4 years
       // period above is 1 year, so
       // 40% / 4 of 100 = 10% of 100 = 10
-      let actualVoteCount = voteCount.add(getBigNumber(10))
       expect(await this.voter.voteCount()).to.be.equal(actualVoteCount)
       expect(await this.voter.totalVoteCount()).to.be.equal(actualVoteCount)
       let govtBalanceAfterVote = await this.govtMock.balanceOf(this.alice.address)

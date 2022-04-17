@@ -61,7 +61,7 @@ contract MiniChefV2 is BoringOwnable {
     uint256 public totalAllocPoint;
 
     uint256 public vwavePerSecond;
-    uint256 private constant ACC_VWAVE_PRECISION = 1e12;
+    uint256 private constant ACC_VWAVE_PRECISION = 1e18;
 
     event Deposit(address indexed user, uint256 indexed pid, uint256 amount, address indexed to);
     event Withdraw(address indexed user, uint256 indexed pid, uint256 amount, address indexed to);
