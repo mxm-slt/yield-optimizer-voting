@@ -166,9 +166,9 @@ describe.only("VoterChefPool", function () {
       // 1 VWAVE = 1 WETH
       let expectedTotalSupply = vwaveTotalDeposit.add(rewardAmount).sub(feeEarnings)
       let supplyDiff = totalSupplyAfterHarvest.sub(expectedTotalSupply).abs()
-      console.log(ethers.utils.formatEther(totalSupplyAfterHarvest))
-      console.log(ethers.utils.formatEther(vwaveTotalDeposit.add(rewardAmount).sub(feeEarnings)))
-      console.log(ethers.utils.formatEther(supplyDiff))
+      // console.log(ethers.utils.formatEther(totalSupplyAfterHarvest))
+      // console.log(ethers.utils.formatEther(vwaveTotalDeposit.add(rewardAmount).sub(feeEarnings)))
+      // console.log(ethers.utils.formatEther(supplyDiff))
       expect(supplyDiff.lt(getBigNumber(1))).to.be.equal(true)
 
     })
@@ -376,26 +376,24 @@ describe.only("VoterChefPool", function () {
       await this.govtMock.approve(this.voter.address, govtBalance)
       expect(await this.govtMock.allowance(this.alice.address, this.voter.address)).to.be.equal(govtBalance)
       
-      // OPTION 1 - Fails
-      // let logVote = await this.voter.voteWithLock(voteCount, 60 * 60 * 24 * 365)
+      let logVote = await this.voter.voteWithLock(voteCount, 60 * 60 * 24 * 365 * 2)
 
-      // OPTION 2 - Works 
-      // let logVote = await this.voter.vote(voteCount)
-      
-      // OPTION 3 - Fails again
-      let lockTime = getBigNumber(1).mul(60).mul(60).mul(24).mul(365)
-      let maxLockTime = lockTime.mul(4)
-      let lockBonus = voteCount.mul(lockTime).div(maxLockTime).mul(40).div(100)
-      let logVote = await this.voter.vote(voteCount.add(lockBonus))
+      // Similar to ordinary vote: 
+      // let lockTime = getBigNumber(2).mul(60).mul(60).mul(24).mul(365)
+      // let maxLockTime = lockTime.mul(4)
+      // let lockBonus = voteCount.mul(lockTime).div(maxLockTime).mul(40).div(100)
+      // console.log(ethers.utils.formatEther(voteCount.add(lockBonus)))
+      // let logVote = await this.voter.vote(voteCount.add(lockBonus))
+
 
       // max pcnt = 40%, max period = 4 years
-      // period above is 1 year, so
+      // period above is 2 year, so
       // 40% / 4 of 100 = 10% of 100 = 10
-      // let actualVoteCount = voteCount.add(getBigNumber(10))
-      // expect(await this.voter.voteCount()).to.be.equal(actualVoteCount)
-      // expect(await this.voter.totalVoteCount()).to.be.equal(actualVoteCount)
-      // let govtBalanceAfterVote = await this.govtMock.balanceOf(this.alice.address)
-      // expect(govtBalanceAfterVote).to.be.equal(govtBalance.sub(voteCount))
+      let actualVoteCount = voteCount.add(getBigNumber(20))
+      expect(await this.voter.voteCount()).to.be.equal(actualVoteCount)
+      expect(await this.voter.totalVoteCount()).to.be.equal(actualVoteCount)
+      let govtBalanceAfterVote = await this.govtMock.balanceOf(this.alice.address)
+      expect(govtBalanceAfterVote).to.be.equal(govtBalance.sub(voteCount))
 
       await advanceTime(86400) // +24 hours, seems to work for Chef
 

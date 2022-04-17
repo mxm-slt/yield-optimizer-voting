@@ -3,6 +3,7 @@
 pragma solidity 0.6.12;
 
 import "@openzeppelin/contracts/access/Ownable.sol";
+import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import "./Voter.sol";
 import "./VwaveRewarder.sol";
 
@@ -11,7 +12,7 @@ import "./VwaveRewarder.sol";
 // VoterToken is owned by Factory
 // Voter is owned by Factory
 // TODO harvestAll()
-contract VwaveFactory is Ownable {
+contract VwaveFactory is Ownable, ReentrancyGuard {
     bytes32 private constant MINTER_ROLE = keccak256("MINTER_ROLE");
 
     event LogNewVoter(
@@ -108,7 +109,7 @@ contract VwaveFactory is Ownable {
         return false;
     }
 
-    function harvestAll() external {
+    function harvestAll() external nonReentrant {
         uint256 voterCount = _voters.length;
         for (uint256 i = 0; i < voterCount; i++) {
             _voters[i].harvest();

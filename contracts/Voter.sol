@@ -7,6 +7,7 @@ import "@openzeppelin/contracts/math/SafeMath.sol";
 import "./MiniChefV2.sol";
 import "@openzeppelin/contracts/presets/ERC20PresetMinterPauser.sol";
 import "hardhat/console.sol";
+import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 
 // Each voter has a corresponding ERC20 token to send to MiniChef
 // Exchange rate between tokens is always 1:1, 1 GovToken == 1 VoteToken
@@ -55,7 +56,7 @@ interface IVoter {
     function isRetired() external view returns (bool);
 }
 
-contract Voter is IVoter, AccessControl {
+contract Voter is IVoter, AccessControl, ReentrancyGuard {
     using SafeMath for uint256;
 
     struct UserInfo {
@@ -106,7 +107,7 @@ contract Voter is IVoter, AccessControl {
         chefPoolId = chefPoolId_;
     }
 
-    function vote(uint256 tokenAmount) external override {
+    function vote(uint256 tokenAmount) external override nonReentrant {
         require(this.isActive(), "Voting is paused");
         // transferring GovToken from user to this contract
         govToken.transferFrom(msg.sender, address(this), tokenAmount);
@@ -118,7 +119,7 @@ contract Voter is IVoter, AccessControl {
         emit Vote(msg.sender, tokenAmount);
     }
 
-    function lock(uint256 govTokenAmount, uint256 durationSeconds) external override {
+    function lock(uint256 govTokenAmount, uint256 durationSeconds) external override nonReentrant {
         require(this.isActive(), "Voting is paused");
         require(durationSeconds >= MIN_TIME_LOCK && durationSeconds <= MAX_TIME_LOCK, "Invalid duration");
         UserInfo storage userInfo = _userVotes[msg.sender];
@@ -136,7 +137,7 @@ contract Voter is IVoter, AccessControl {
         depositVotesToMinichef(userInfo.lockBonus);
     }
 
-    function voteWithLock(uint256 govTokenAmount, uint256 durationSeconds) external override {
+    function voteWithLock(uint256 govTokenAmount, uint256 durationSeconds) external override nonReentrant {
         require(this.isActive(), "Voting is paused");
         require(durationSeconds >= MIN_TIME_LOCK && durationSeconds <= MAX_TIME_LOCK, "Invalid duration");
         UserInfo storage userInfo = _userVotes[msg.sender];
@@ -156,7 +157,7 @@ contract Voter is IVoter, AccessControl {
         emit Vote(msg.sender, govTokenAmount);
     }
 
-    function unvote(uint256 tokenAmount) external override {
+    function unvote(uint256 tokenAmount) external override nonReentrant {
         // decrease user vote count
         UserInfo storage userInfo = _userVotes[msg.sender];
         if (state == State.RETIRED) {
@@ -178,7 +179,7 @@ contract Voter is IVoter, AccessControl {
         emit Unvote(msg.sender, tokenAmount);
     }
 
-    function harvest() external override {
+    function harvest() external override nonReentrant {
         miniChef.harvest(chefPoolId, rewardPoolAddress);
     }
 
