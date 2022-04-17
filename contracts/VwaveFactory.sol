@@ -14,9 +14,10 @@ import "./VwaveRewarder.sol";
 contract VwaveFactory is Ownable {
     bytes32 private constant MINTER_ROLE = keccak256("MINTER_ROLE");
 
-    event LOG_NEW_VOTER(
+    event LogNewVoter(
         address indexed caller,
-        address indexed voter
+        address indexed voter,
+        address indexed rewardPool
     );
 
     uint8 constant DEFAULT_ALLOC_POINT = 1;
@@ -37,14 +38,21 @@ contract VwaveFactory is Ownable {
 
         govToken = govToken_;
 
-        ERC20PresetMinterPauser voteToken = new ERC20PresetMinterPauser("Voter", "VTR");
+        ERC20PresetMinterPauser voteToken = new ERC20PresetMinterPauser(
+            "Voter",
+            "VTR"
+        );
         _voteToken = voteToken;
 
         VwaveRewarder rewarder = new VwaveRewarder();
         // Rewarder notifies RewardPool
         _vwaveRewarder = rewarder;
 
-        chefPoolId = aMiniChef.add(DEFAULT_ALLOC_POINT, IBoringERC20(address(voteToken)), IRewarder(rewarder));
+        chefPoolId = aMiniChef.add(
+            DEFAULT_ALLOC_POINT,
+            IBoringERC20(address(voteToken)),
+            IRewarder(rewarder)
+        );
     }
 
     function getChef() external view returns (MiniChefV2) {
@@ -55,31 +63,55 @@ contract VwaveFactory is Ownable {
         return _vwaveRewarder;
     }
 
-    function isVoter(address b)
-    external view returns (bool)
-    {
+    function isVoter(address b) external view returns (bool) {
         return _isVoter[b];
     }
 
-    function newVoter(address rewardPool_)
-    external
-    onlyOwner
-    returns (Voter)
-    {
-        Voter voter = new Voter(miniChef, chefPoolId, govToken, rewardPool_, _voteToken);
-        voter.transferOwnership(this.owner());
+    function newVoter(address rewardPool_) external onlyOwner returns (Voter) {
+        Voter voter = new Voter(
+            miniChef,
+            chefPoolId,
+            govToken,
+            rewardPool_,
+            _voteToken
+        );
+        voter.grantRole(voter.ROLE_CAN_PAUSE(), this.owner());
         _voteToken.grantRole(MINTER_ROLE, address(voter));
         _isVoter[address(voter)] = true;
         _voters.push(voter);
-        emit LOG_NEW_VOTER(msg.sender, address(voter));
+        emit LogNewVoter(msg.sender, address(voter), address(rewardPool_));
         return voter;
     }
 
+    function getVoterCount() external view returns (uint256) {
+        return _voters.length;
+    }
+
+    function getVoter(uint256 index) external view returns (address) {
+        return address(_voters[index]);
+    }
+
+    function retire(address voter) external onlyOwner returns (bool) {
+        require(_isVoter[voter], "Unknown voter");
+        Voter(voter).retire();
+        uint256 voterCount = _voters.length;
+        _isVoter[voter] = false;
+        for (uint256 i = 0; i < voterCount; i++) {
+            if (address(_voters[i]) == voter) {
+                if (_voters.length > 1) {
+                    _voters[i] = _voters[voterCount - 1];
+                }
+                _voters.pop();
+                return true;
+            }
+        }
+        return false;
+    }
+
     function harvestAll() external {
-        uint voterCount = _voters.length;
-        for (uint i = 0; i < voterCount; i++) {
+        uint256 voterCount = _voters.length;
+        for (uint256 i = 0; i < voterCount; i++) {
             _voters[i].harvest();
         }
     }
-
 }

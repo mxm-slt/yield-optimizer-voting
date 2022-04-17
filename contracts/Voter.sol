@@ -55,7 +55,7 @@ interface IVoter {
     function isRetired() external view returns (bool);
 }
 
-contract Voter is IVoter, Ownable {
+contract Voter is IVoter, AccessControl {
     using SafeMath for uint256;
 
     struct UserInfo {
@@ -66,6 +66,9 @@ contract Voter is IVoter, Ownable {
         // if lockedAmount = 100 and return coeff = 1.2 then lockBonus = 20 (lockedAmount * (multiplicator - 1))
         uint256 lockBonus;
     }
+
+    bytes32 public constant ROLE_CAN_RETIRE = keccak256("CAN_RETIRE");
+    bytes32 public constant ROLE_CAN_PAUSE = keccak256("CAN_PAUSE");
 
     uint8 constant DEFAULT_ALLOC_POINT = 1;
     uint32 public constant MIN_TIME_LOCK = 60 * 60 * 24 * 7; // one week
@@ -90,6 +93,12 @@ contract Voter is IVoter, Ownable {
         IERC20 govToken_,
         address rewardPool_,
         ERC20PresetMinterPauser voteToken_) public {
+
+        _setupRole(DEFAULT_ADMIN_ROLE, _msgSender());
+        _setRoleAdmin(ROLE_CAN_PAUSE, DEFAULT_ADMIN_ROLE);
+        _setupRole(ROLE_CAN_PAUSE, _msgSender());
+        _setupRole(ROLE_CAN_RETIRE, _msgSender());
+
         govToken = govToken_;
         miniChef = miniChef_;
         _voteToken = voteToken_;
@@ -195,14 +204,16 @@ contract Voter is IVoter, Ownable {
         return _totalVoteTokenAmount;
     }
 
-    function pause() external override onlyOwner {
+    function pause() external override {
+        require(hasRole(ROLE_CAN_PAUSE, msg.sender), "Caller cannot pause/unpause");
         require(state == State.ACTIVE, "Voting is not active");
         state = State.PAUSED;
         withdrawAndHarvestAll();
         emit Paused();
     }
 
-    function unpause() external override onlyOwner {
+    function unpause() external override {
+        require(hasRole(ROLE_CAN_PAUSE, msg.sender), "Caller cannot pause/unpause");
         require(state == State.PAUSED, "Voting is not paused");
         state = State.ACTIVE;
         if (_totalVoteTokenAmount > 0) {
@@ -211,7 +222,8 @@ contract Voter is IVoter, Ownable {
         emit Unpaused();
     }
 
-    function retire() external override onlyOwner {
+    function retire() external override {
+        require(hasRole(ROLE_CAN_RETIRE, msg.sender), "Caller cannot retire");
         require(state != State.RETIRED, "Already retired");
         if (state == State.ACTIVE) {
             withdrawAndHarvestAll();
