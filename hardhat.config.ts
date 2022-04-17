@@ -88,8 +88,8 @@ const config: HardhatUserConfig = {
       gasMultiplier: 2,
     },
     rinkeby: {
-      url: `https://rinkeby.infura.io/v3/${process.env.INFURA_API_KEY}`,
-      accounts,
+      url: `https://rinkeby.infura.io/v3/9aa3d95b3bc440fa88ea12eaa4456161`,
+      accounts: [process.env.RINKEBY_DEPLOYER],
       chainId: 4,
       live: true,
       saveDeployments: true,

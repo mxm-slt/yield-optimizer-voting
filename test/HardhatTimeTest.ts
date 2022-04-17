@@ -71,7 +71,7 @@ describe.only("TimeTest", function () {
         await this.rewardpoolA.setKeeper(rewarder)
     
         let voterTx = await (await this.factory.newVoter(this.rewardpoolA.address)).wait()
-        let voterAddress = voterTx.events.filter(x => x.event == "LOG_NEW_VOTER")[0].args["voter"]
+        let voterAddress = voterTx.events.filter(x => x.event == "LogNewVoter")[0].args["voter"]
         this.voter = await this.Voter.attach(voterAddress)
     
         await this.vwave.mint(this.chef.address, getBigNumber(10000))

@@ -31,7 +31,7 @@ describe.only("VoterChefPool", function () {
     await deploy(this, [["govtMock", this.ERC20Mock, ["GovToken Mock", "GovTM", getBigNumber(10000)]]])
     await deploy(this, [["lp", this.ERC20Mock, ["LP Token", "LPT", getBigNumber(10000)]]])
     await deploy(this, [["wnative", this.ERC20Mock, ["wnative", "wnative", getBigNumber(10000)]]])
-    await deploy(this, [["unirouterNative2VWAVe", this.UniswapRouterMock, [this.wnative.address, this.vwave.address] ]])
+    await deploy(this, [["unirouterNative2VWAVe", this.UniswapRouterMock, [this.wnative.address, this.vwave.address]]])
 
     await deploy(this, [["rewardpoolA", this.VaporwaveRewardPoolV2, [this.lp.address, this.vwave.address]],])
     await deploy(this, [["vwaveWETHRewardPool", this.VaporwaveRewardPoolV2, [this.vwave.address, this.wnative.address]],])
@@ -41,38 +41,38 @@ describe.only("VoterChefPool", function () {
     this.VWAVE_PER_SECOND = await this.factory.VWAVE_PER_SECOND()
 
     await deploy(this, [["feeReceipient", this.VaporwaveFeeRecipientV2,
-                        [ this.vwaveWETHRewardPool.address,
-                          this.unirouterNative2VWAVe.address,
-                          this.vwave.address,
-                          this.wnative.address,
-                          this.chef.address ]]])
+      [this.vwaveWETHRewardPool.address,
+      this.unirouterNative2VWAVe.address,
+      this.vwave.address,
+      this.wnative.address,
+      this.chef.address]]])
 
     await this.vwaveWETHRewardPool.setKeeper(this.feeReceipient.address)
 
     const predictedAddresses = await predictAddresses({ creator: this.alice.address });
 
     await deploy(this, [["vaporVaultV3", this.VaporVaultV3,
-                        [predictedAddresses.strategy,
-                        "vaporVaultV3 Token", "VVV3"]]])
+      [predictedAddresses.strategy,
+        "vaporVaultV3 Token", "VVV3"]]])
 
     await deploy(this, [["vwaveMaxi", this.VwaveMaxi,
-                        [ this.vwave.address,
-                          this.vwaveWETHRewardPool.address,
-                          this.vaporVaultV3.address,
-                          this.unirouterNative2VWAVe.address,
-                          this.alice.address,
-                          this.bob.address,
-                          this.feeReceipient.address,
-                          [this.wnative.address, this.vwave.address]
-                        ]]])
+      [this.vwave.address,
+      this.vwaveWETHRewardPool.address,
+      this.vaporVaultV3.address,
+      this.unirouterNative2VWAVe.address,
+      this.alice.address,
+      this.bob.address,
+      this.feeReceipient.address,
+      [this.wnative.address, this.vwave.address]
+      ]]])
 
-    
+
     // only MiniChef can distribute rewards to RewardPools
     let rewarder = await this.factory.getVwaveRewarder()
     await this.rewardpoolA.setKeeper(rewarder)
 
     let voterTx = await (await this.factory.newVoter(this.rewardpoolA.address)).wait()
-    let voterAddress = voterTx.events.filter(x => x.event == "LOG_NEW_VOTER")[0].args["voter"]
+    let voterAddress = voterTx.events.filter(x => x.event == "LogNewVoter")[0].args["voter"]
     this.voter = await this.Voter.attach(voterAddress)
 
     await this.vwave.mint(this.chef.address, getBigNumber(10000))
@@ -179,11 +179,11 @@ describe.only("VoterChefPool", function () {
       await this.wnative.transfer(this.feeReceipient.address, wnativeFees)
       expect(await this.wnative.balanceOf(this.feeReceipient.address)).to.be.equal(getBigNumber(100))
       // Harvest fees
-      await this.feeReceipient.harvest() 
+      await this.feeReceipient.harvest()
       // 75% weth goes to vwaveWETHRewardPool
       expect(await this.wnative.balanceOf(this.vwaveWETHRewardPool.address)).to.be.equal(getBigNumber(75))
       // 25% weth used to buy VWAVE that go to minichef, for testing purposes: 1 vwave = 1 weth
-      expect(await this.vwave.balanceOf(this.chef.address)).to.be.equal(getBigNumber(10025)) 
+      expect(await this.vwave.balanceOf(this.chef.address)).to.be.equal(getBigNumber(10025))
       // no one stacked anything
       expect(await this.vwaveWETHRewardPool.totalSupply()).to.be.equal(0);
       // let's stake some
@@ -197,14 +197,14 @@ describe.only("VoterChefPool", function () {
 
       let rewardPerToken = await this.vwaveWETHRewardPool.rewardPerToken()
       let expectedReward = rewardPerToken.mul(vwaveStake).div(ethers.BigNumber.from("10").pow(18))
-      
-      let balanceBeforeReward = await this.wnative.balanceOf(this.alice.address)    
-      await expect(this.vwaveWETHRewardPool.getReward()).to.emit(this.vwaveWETHRewardPool, "RewardPaid").withArgs(this.alice.address, expectedReward)      
+
+      let balanceBeforeReward = await this.wnative.balanceOf(this.alice.address)
+      await expect(this.vwaveWETHRewardPool.getReward()).to.emit(this.vwaveWETHRewardPool, "RewardPaid").withArgs(this.alice.address, expectedReward)
       let balanceAfterReward = await this.wnative.balanceOf(this.alice.address)
       expect(balanceAfterReward.sub(balanceBeforeReward)).to.equal(expectedReward)
       //console.log(ethers.utils.formatEther(expectedReward.sub(getBigNumber(75))))
       expect(expectedReward.sub(getBigNumber(75)).abs().lt(getBigNumber(1))).to.equal(true)
-      
+
     })
 
 
@@ -214,11 +214,11 @@ describe.only("VoterChefPool", function () {
       await this.wnative.transfer(this.feeReceipient.address, wnativeFees)
       expect(await this.wnative.balanceOf(this.feeReceipient.address)).to.be.equal(getBigNumber(100))
       // Harvest fees
-      await this.feeReceipient.harvest() 
+      await this.feeReceipient.harvest()
       // 75% weth goes to vwaveWETHRewardPool
       expect(await this.wnative.balanceOf(this.vwaveWETHRewardPool.address)).to.be.equal(getBigNumber(75))
       // 25% weth used to buy VWAVE that go to minichef, for testing purposes: 1 vwave = 1 weth
-      expect(await this.vwave.balanceOf(this.chef.address)).to.be.equal(getBigNumber(10025)) 
+      expect(await this.vwave.balanceOf(this.chef.address)).to.be.equal(getBigNumber(10025))
       // no one stacked anything
       expect(await this.vwaveWETHRewardPool.totalSupply()).to.be.equal(0);
       // let's stake some
@@ -235,14 +235,14 @@ describe.only("VoterChefPool", function () {
 
       let rewardPerToken = await this.vwaveWETHRewardPool.rewardPerToken()
       let expectedReward = rewardPerToken.mul(vwaveStake).div(ethers.BigNumber.from("10").pow(18))
-      
-      let balanceBeforeReward = await this.wnative.balanceOf(this.alice.address)    
-      await expect(this.vwaveWETHRewardPool.getReward()).to.emit(this.vwaveWETHRewardPool, "RewardPaid").withArgs(this.alice.address, expectedReward)      
+
+      let balanceBeforeReward = await this.wnative.balanceOf(this.alice.address)
+      await expect(this.vwaveWETHRewardPool.getReward()).to.emit(this.vwaveWETHRewardPool, "RewardPaid").withArgs(this.alice.address, expectedReward)
       let balanceAfterReward = await this.wnative.balanceOf(this.alice.address)
       expect(balanceAfterReward.sub(balanceBeforeReward)).to.equal(expectedReward)
       //console.log(ethers.utils.formatEther(expectedReward.sub(getBigNumber(75))))
       expect(expectedReward.sub(getBigNumber(75).div(2)).abs().lt(getBigNumber(1))).to.equal(true)
-      
+
     })
 
 
@@ -253,11 +253,11 @@ describe.only("VoterChefPool", function () {
       await this.wnative.transfer(this.feeReceipient.address, wnativeFees)
       expect(await this.wnative.balanceOf(this.feeReceipient.address)).to.be.equal(getBigNumber(100))
       // Harvest fees
-      await this.feeReceipient.harvest() 
+      await this.feeReceipient.harvest()
       // 75% weth goes to vwaveWETHRewardPool
       expect(await this.wnative.balanceOf(this.vwaveWETHRewardPool.address)).to.be.equal(getBigNumber(75))
       // 25% weth used to buy VWAVE that go to minichef, for testing purposes: 1 vwave = 1 weth
-      expect(await this.vwave.balanceOf(this.chef.address)).to.be.equal(getBigNumber(10025)) 
+      expect(await this.vwave.balanceOf(this.chef.address)).to.be.equal(getBigNumber(10025))
 
       // a user deposits VWAVE to get gov tokens
       let vwaveDeposit = getBigNumber(500)
@@ -267,10 +267,10 @@ describe.only("VoterChefPool", function () {
       await this.vaporVaultV3.deposit(vwaveDeposit) //await this.govVault.deposit(vwaveDeposit)
       // check that a user have received gov token
       expect(await this.vaporVaultV3.balanceOf(this.alice.address)).to.be.equal(vwaveDeposit)  // expect(await this.govVault.balanceOf(this.alice.address)).to.be.equal(vwaveDeposit)
-      expect(await this.vwave.balanceOf(this.alice.address)).to.be.equal(0) 
+      expect(await this.vwave.balanceOf(this.alice.address)).to.be.equal(0)
 
       await advanceBlock()
-      
+
       let rewardsAvailable = await this.vwaveMaxi.rewardsAvailable()
       // we expect some rewards to be generated
       expect(rewardsAvailable.gt(0)).to.be.true
@@ -288,8 +288,11 @@ describe.only("VoterChefPool", function () {
       await this.govtMock.approve(this.voter.address, voteCount)
       expect(await this.govtMock.allowance(this.alice.address, this.voter.address)).to.be.equal(voteCount)
       let logVote = await this.voter.vote(voteCount)
+
+      expect(await this.voter.totalBalance()).to.be.equal(voteCount)
       expect(await this.voter.voteCount()).to.be.equal(voteCount)
       expect(await this.voter.totalVoteCount()).to.be.equal(voteCount)
+
       let govtBalanceAfterVote = await this.govtMock.balanceOf(this.alice.address)
       expect(govtBalanceAfterVote).to.be.equal(govtBalance.sub(voteCount))
 
@@ -300,7 +303,7 @@ describe.only("VoterChefPool", function () {
 
       let timestamp2 = (await ethers.provider.getBlock(logAfter24h.blockNumber)).timestamp
       let timestamp = (await ethers.provider.getBlock(logVote.blockNumber)).timestamp
-      
+
       // TODO VwavePerSecond=10_000_000_000_000_000 = 1e16 ==> 1e18/100 = 0.01, make it configurable in contracts
       let expectedVwave = BigNumber.from(this.VWAVE_PER_SECOND).mul(timestamp2 - timestamp)
       let pendingVwave = await this.chef.pendingVwave(0, this.voter.address)
@@ -311,11 +314,11 @@ describe.only("VoterChefPool", function () {
       let lpStakeAmount = getBigNumber(200)
       await this.lp.approve(this.rewardpoolA.address, lpStakeAmount)
       let logStake = await this.rewardpoolA.stake(lpStakeAmount)
-      
+
       expect(await this.rewardpoolA.totalSupply()).to.be.equal(lpStakeAmount)
       expect(await this.rewardpoolA.balanceOf(this.alice.address)).to.be.equal(lpStakeAmount)
       expect(await this.rewardpoolA.earned(this.alice.address)).to.be.equal(getBigNumber(0))
-      expect(await this.rewardpoolA.rewardPerToken()).to.be.equal(getBigNumber(0))      
+      expect(await this.rewardpoolA.rewardPerToken()).to.be.equal(getBigNumber(0))
       expect(await this.rewardpoolA.lastTimeRewardApplicable()).to.be.equal(await this.rewardpoolA.lastUpdateTime())
 
       await advanceTime(86400) // +24 hours
@@ -456,17 +459,25 @@ describe.only("VoterChefPool", function () {
       let logVote = await this.voter.voteWithLock(voteCount, 60 * 60 * 24 * 365)
 
       await advanceTime(86400) // +24 hours
-      await expect(this.voter.retire()).to.emit(this.voter, "Retired")
+      // cannot call directly, only via factory
+      await expect(this.voter.retire()).to.be.revertedWith("Caller cannot retire")
+      // can call via factory
+      await expect(this.factory.retire(this.voter.address)).to.emit(this.voter, "Retired")
+      // make sure voter state changed
+      await expect(await this.voter.isRetired()).to.be.equal(true)
+      // retired must be deleted from factory
+      await expect(await this.factory.isVoter(this.voter.address)).to.be.equal(false)
+      await expect(await this.factory.getVoterCount()).to.be.equal(0)
 
-      let isRetired = await this.voter.isRetired()
-      expect(isRetired).to.be.equal(true)
+      //can retire only once
+      await expect(this.factory.retire(this.voter.address)).to.be.revertedWith("Unknown voter")
 
       // no crash trying to unvote locked
       await this.voter.unvote(voteCount);
       expect(await this.voter.totalBalance()).to.be.equal(0)
     })
 
-    it("Pause and unpause" , async function() {
+    it("Pause and unpause", async function () {
       let voteCount = getBigNumber(1000)
       await this.govtMock.approve(this.voter.address, voteCount)
       let logVote = await this.voter.voteWithLock(getBigNumber(10), 60 * 60 * 24 * 365)
