@@ -38,6 +38,8 @@ interface IVoter {
     function lockedBalance() external view returns (uint256);
     // @return total GovToken balance
     function totalBalance() external view returns (uint256);
+    function lockExpiration() external view returns (uint256);
+
     // @return the number of votes for caller, time-locked multipliers are taken into account
     function voteCount() external view returns (uint256);
 
@@ -184,16 +186,23 @@ contract Voter is IVoter, AccessControl, ReentrancyGuard {
     }
 
     function unlockedBalance() external override view returns (uint256) {
-        return _userVotes[msg.sender].unlockedAmount;
+        UserInfo storage userInfo = _userVotes[msg.sender];
+        return userInfo.unlockedAmount;
     }
 
     function lockedBalance() external override view returns (uint256) {
-        return _userVotes[msg.sender].lockedAmount;
+        UserInfo storage userInfo = _userVotes[msg.sender];
+        return userInfo.lockedAmount;
     }
 
     function totalBalance() external override view returns (uint256) {
         UserInfo storage userInfo = _userVotes[msg.sender];
         return userInfo.unlockedAmount.add(userInfo.lockedAmount);
+    }
+
+    function lockExpiration() external override view returns (uint256) {
+        UserInfo storage userInfo = _userVotes[msg.sender];
+        return userInfo.lockExpiration;
     }
 
     function voteCount() external override view returns (uint256) {

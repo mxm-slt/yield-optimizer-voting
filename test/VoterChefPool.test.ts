@@ -401,10 +401,9 @@ describe.only("VoterChefPool", function () {
       let logAfter24h = await this.chef.updatePool(0)
 
       let timestamp2 = (await ethers.provider.getBlock(logAfter24h.blockNumber)).timestamp
-      let timestamp = (await ethers.provider.getBlock(logVote.blockNumber)).timestamp
 
       // TODO VwavePerSecond=10_000_000_000_000_000 = 1e16 ==> 1e18/100 = 0.01, make it configurable in contracts
-      let expectedVwave = BigNumber.from(this.VWAVE_PER_SECOND).mul(timestamp2 - timestamp)
+      let expectedVwave = BigNumber.from(this.VWAVE_PER_SECOND).mul(timestamp2 - voteTimestamp)
       let pendingVwave = await this.chef.pendingVwave(0, this.voter.address)
       expect(pendingVwave).to.be.equal(expectedVwave)
 
@@ -466,7 +465,10 @@ describe.only("VoterChefPool", function () {
     it("retire and withdraw time locked", async function () {
       let voteCount = getBigNumber(100)
       await this.govtMock.approve(this.voter.address, voteCount)
-      let logVote = await this.voter.voteWithLock(voteCount, 60 * 60 * 24 * 365)
+      let lockDuration = 60 * 60 * 24 * 365;
+      let logVote = await this.voter.voteWithLock(voteCount, lockDuration)
+      let voteTimestamp = (await ethers.provider.getBlock(logVote.blockNumber)).timestamp
+      expect(await this.voter.lockExpiration()).to.be.equal(voteTimestamp + lockDuration)
 
       await advanceTime(86400) // +24 hours
       // cannot call directly, only via factory

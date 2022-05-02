@@ -92,6 +92,7 @@ const config: HardhatUserConfig = {
       accounts: [process.env.RINKEBY_DEPLOYER],
       chainId: 4,
       live: true,
+      timeout: 60000,
       saveDeployments: true,
       tags: ["staging"],
       gasPrice: 5000000000,
